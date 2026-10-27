@@ -51,21 +51,7 @@ import { SCENES } from './sceneKeys';
 import type { UiScene } from './UiScene';
 
 type Keys = Record<
-  | 'left'
-  | 'right'
-  | 'up'
-  | 'down'
-  | 'a'
-  | 'd'
-  | 'w'
-  | 's'
-  | 'z'
-  | 'space'
-  | 'x'
-  | 'c'
-  | 'v'
-  | 'b'
-  | 'enter',
+  'left' | 'right' | 'up' | 'down' | 'a' | 'd' | 'w' | 's' | 'z' | 'space',
   Phaser.Input.Keyboard.Key
 >;
 
@@ -126,7 +112,8 @@ const ACTION_CODES: Readonly<Record<string, Action>> = {
   Space: 'jump',
   KeyX: 'attack',
   KeyJ: 'attack',
-  KeyC: 'dash',
+  ShiftLeft: 'dash',
+  ShiftRight: 'dash',
   KeyK: 'dash',
   KeyB: 'dance',
   ArrowUp: 'interact',
@@ -585,29 +572,35 @@ export class GameScene extends Phaser.Scene {
       s: K.S,
       z: K.Z,
       space: K.SPACE,
-      x: K.X,
-      c: K.C,
-      v: K.V,
-      b: K.B,
-      enter: K.ENTER,
     }) as Keys;
-    keyboard.on('keydown', (event: KeyboardEvent) => {
+    // Discrete actions come straight from DOM events: exactly one event per press, even for
+    // presses shorter than a frame (Phaser's queue can drop or replay them at low frame rates).
+    const onKeyDown = (event: KeyboardEvent): void => {
       if (event.repeat) return;
       if (SPELL_CODES.has(event.code)) this.spellInput.press(this.time.now);
       const action = ACTION_CODES[event.code];
       if (action) this.actions.press(action);
-    });
-    keyboard.on('keyup', (event: KeyboardEvent) => {
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
       if (SPELL_CODES.has(event.code) && this.spellInput.release(this.time.now)) {
         this.actions.press('spell');
       }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
     });
   }
 
   // ---------------------------------------------------------------- loop
 
   override update(_time: number, delta: number): void {
-    if (!this.started || this.ui.cardsPlaying) return;
+    if (!this.started || this.ui.cardsPlaying) {
+      this.actions.clear();
+      return;
+    }
     if (this.ui.panelOpen) {
       const close = ['jump', 'attack', 'confirm'] as const;
       if (close.some((action) => this.actions.peek(action))) {
@@ -1211,14 +1204,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
     }
-    if (
-      this.bossActive &&
-      this.bossMode !== 'dead' &&
-      Phaser.Geom.Rectangle.Overlaps(playerRect, this.boss.getBounds())
-    ) {
-      this.hurt(this.boss.x);
-      return;
-    }
+    // The boss's body is harmless: only its attacks (selection, eraser, doubts) hurt.
     for (const hazard of this.hazards) {
       if (hazard.activeAfterMs <= 0 && Phaser.Geom.Rectangle.Overlaps(playerRect, hazard.rect)) {
         this.hurt(hazard.rect.centerX);
@@ -1309,7 +1295,7 @@ export class GameScene extends Phaser.Scene {
         this.drawBridgeOutline();
         this.physics.world.pause();
         audioDirector.playSfx('ability');
-        this.ui.showPanel('COMPLETAR [C]', DESK_LINES.join('\n\n'));
+        this.ui.showPanel('COMPLETAR [Shift]', DESK_LINES.join('\n\n'));
       }
     }
     for (const prop of this.props) {

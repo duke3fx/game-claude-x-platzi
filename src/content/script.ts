@@ -51,7 +51,7 @@ export const TILDE_POSTGAME: readonly string[] = [
 
 export const DESK_LINES: readonly string[] = [
   '// aquí Clawd me ayuda a terminar lo que no sé terminar',
-  'Obtuviste COMPLETAR [C]',
+  'Obtuviste COMPLETAR [Shift]',
   'Donde una línea empieza, tú puedes terminarla.',
 ];
 
@@ -74,7 +74,7 @@ export const UI_TEXT = {
   subtitle: 'un juego de fans protagonizado por Clawd',
   pressStart: 'Pulsa Z o Enter para empezar',
   controls:
-    '← → moverse · Z saltar · X garra · ↓+X rebote · V toque: chispa / mantener: curar · C completar · ↑ descansar · B bailar',
+    '← → moverse · Z saltar · X garra · ↓+X rebote · V toque: chispa / mantener: curar · Shift completar · ↑ descansar · B bailar',
   rest: '↑ Descansar',
   resting: 'Descansando… commit guardado ✓',
   noContext: 'No hay suficiente Contexto',

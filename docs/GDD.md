@@ -134,7 +134,7 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 | Mirar arriba/abajo (para atacar) | ↑ ↓ (o W S) | Stick |
 | Saltar | Z / Espacio | A |
 | Atacar | X / J | X |
-| Completar (dash) | C / K | RB |
+| Completar (dash) | Shift / K | RB |
 | Chispa ✻ (tocar) / Curar (mantener) | V / L | Y |
 | Interactuar / leer / descansar en la banca | ↑ cerca del objeto | ↑ |
 | Bailar (4 bailes en ciclo) | B | — |

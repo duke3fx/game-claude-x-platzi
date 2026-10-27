@@ -199,11 +199,11 @@ export const DIALOGUES: Readonly<Record<DialogueId, readonly DialogueLine[]>> = 
       text: 'En el escritorio de Luz, entre tazas frías y apuntes, hay un comentario con su letra:',
     },
     { speaker: 'lu', text: '// aquí Clawd me ayuda a terminar lo que no sé terminar' },
-    { speaker: NARRATOR, text: '> Completar [C]' },
+    { speaker: NARRATOR, text: '> Completar [Shift]' },
     { speaker: NARRATOR, text: 'Donde una línea empieza, tú puedes terminarla.' },
     {
       speaker: NARRATOR,
-      text: 'Pulsa C para Completar: un impulso que atraviesa el peligro y termina los puentes punteados.',
+      text: 'Pulsa Shift para Completar: un impulso que atraviesa el peligro y termina los puentes punteados.',
     },
   ],
   bossIntro: [
@@ -276,7 +276,7 @@ export const SIGNS: Readonly<Record<SignId, string>> = {
   attack: 'X para atacar. Los garabatos no se ofenden, lo prometo.',
   pogo: '↓ + X en el aire: rebota. No sé por qué, pero funciona.',
   heal: 'Mantén V para curarte. Gasta Contexto. Respira tú también.',
-  dash: 'C para Completar. Cruza lo que yo dejé a medias.',
+  dash: 'Shift para Completar. Cruza lo que yo dejé a medias.',
   commit: '↑ en la terminal para guardar. Haz commits seguido.',
   mirage: 'Si brilla demasiado, no tiene sombra... Si dudas, no saltes.',
   bridge: '// TODO: puente',
@@ -392,7 +392,7 @@ export const UI: UiText = {
   compactingSub: 'Reanudando desde el último commit',
   saved: 'Commit guardado',
   abilityName: 'Completar',
-  abilityHint: 'Pulsa C: atraviesa el peligro y completa los puentes punteados',
+  abilityHint: 'Pulsa Shift: atraviesa el peligro y completa los puentes punteados',
   noteFound: 'Nota encontrada',
   interact: '↑ Usar',
   read: '↑ Leer',
@@ -400,7 +400,7 @@ export const UI: UiText = {
   close: 'Cerrar',
   openWorld: 'El mundo sigue abierto',
   controls:
-    '← → mover · Z saltar · X atacar · ↓+X rebote · C completar · V curar · ↑ usar · Esc pausa',
+    '← → mover · Z saltar · X atacar · ↓+X rebote · Shift completar · V curar · ↑ usar · Esc pausa',
   zoneNames: {
     sandbox: 'El Arenero',
     library: 'La Biblioteca Nocturna',

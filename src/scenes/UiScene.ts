@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { audioDirector } from '../audio/AudioDirector';
 import { GAME_HEIGHT, GAME_WIDTH, UI_ZOOM } from '../config/display';
 import { COLORS, hexToNumber } from '../config/palette';
+import { createTitleBackdrop } from '../systems/titleBackdrop';
 import { SCENES } from './sceneKeys';
 
 /** UI layout space (960x540); the camera zooms it to the full canvas. */
@@ -294,29 +295,57 @@ export class UiScene extends Phaser.Scene {
 
   /** Title screen: waits for a key, then calls onStart. */
   showTitle(onStart: () => void, subtitle: string, prompt: string, controls: string): void {
-    const bg = this.add.rectangle(W / 2, H / 2, W, H, hexToNumber(COLORS.nearBlack));
+    const backdrop = createTitleBackdrop(this);
     const title = this.add
-      .text(W / 2, H / 2 - 90, 'A G E N T', { ...this.style(96, COLORS.ivory), fontFamily: SERIF })
+      .text(W / 2, 150, 'A G E N T', {
+        ...this.style(104, COLORS.ivory),
+        fontFamily: SERIF,
+        shadow: { offsetX: 0, offsetY: 4, color: '#000000', blur: 16, fill: true },
+      })
       .setOrigin(0.5);
     const ornament = this.add.graphics();
-    this.drawOrnament(ornament, W / 2, H / 2 - 28, 360);
+    this.drawOrnament(ornament, W / 2, 222, 380);
     const sub = this.add
-      .text(W / 2, H / 2, subtitle, this.style(22, COLORS.cloudLight))
+      .text(W / 2, 254, subtitle, {
+        ...this.style(22, COLORS.cloudLight),
+        shadow: { offsetX: 0, offsetY: 2, color: '#000000', blur: 6, fill: true },
+      })
       .setOrigin(0.5);
     const press = this.add
-      .text(W / 2, H / 2 + 80, prompt, this.style(22, COLORS.ivory))
+      .text(W / 2, 340, prompt, {
+        ...this.style(22, COLORS.ivory),
+        shadow: { offsetX: 0, offsetY: 2, color: '#000000', blur: 6, fill: true },
+      })
       .setOrigin(0.5);
     const help = this.add
-      .text(W / 2, H - 40, controls, this.style(16, COLORS.cloudDark))
-      .setOrigin(0.5);
+      .text(W / 2, H - 22, controls.replace(/ · (V toque)/, '\n$1'), {
+        ...this.style(15, COLORS.cloudLight),
+        align: 'center',
+        lineSpacing: 6,
+      })
+      .setOrigin(0.5, 1);
+    this.tweens.add({
+      targets: title,
+      y: title.y - 6,
+      duration: 3200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    });
     this.tweens.add({ targets: press, alpha: 0.3, duration: 900, yoyo: true, repeat: -1 });
     const keyboard = this.input.keyboard;
     const start = (event: KeyboardEvent): void => {
       if (event.code !== 'KeyZ' && event.code !== 'Enter' && event.code !== 'Space') return;
       keyboard?.off('keydown', start);
       audioDirector.playSfx('confirm');
-      for (const obj of [bg, title, ornament, sub, press, help]) obj.destroy();
-      onStart();
+      this.tweens.add({ targets: [title, ornament, sub, press, help], alpha: 0, duration: 400 });
+      backdrop.fadeOut(() => {
+        for (const obj of [title, ornament, sub, press, help]) {
+          this.tweens.killTweensOf(obj);
+          obj.destroy();
+        }
+        onStart();
+      });
     };
     keyboard?.on('keydown', start);
   }
