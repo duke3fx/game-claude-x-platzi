@@ -701,7 +701,7 @@ export class GameScene extends Phaser.Scene {
     this.boss.setAlpha(this.bossFlashMs > 0 ? 0.5 : 1);
     const targetX = Phaser.Math.Clamp(this.player.x, (ARENA_GATE_COL + 4) * TILE, 154 * TILE);
     this.boss.x = approach(this.boss.x, targetX, 40 * (dt / 1000));
-    this.boss.y = 10 * TILE + Math.sin(this.time.now / 700) * 10;
+    this.boss.y = 10.5 * TILE + Math.sin(this.time.now / 700) * 8;
     this.ui.setBoss(this.bossHp / BOSS_HP);
 
     if (this.bossMode === 'idle' && this.bossModeMs >= BOSS_IDLE_MS * speed) {

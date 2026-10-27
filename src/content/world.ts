@@ -60,7 +60,7 @@ function buildTerrain(): string[] {
   fill(grid, 67, 71, 11, 11, '#');
   fill(grid, 74, 78, 8, 8, '#');
   fill(grid, 82, 86, 12, 12, '#');
-  fill(grid, 90, 91, 13, 16, '#');
+  fill(grid, 90, 91, 14, 16, '#');
   // The unfinished bridge over a spike pit: only COMPLETAR can cross it.
   fill(grid, 106, 113, 17, 19, '.');
   fill(grid, 106, 113, 19, 19, '^');

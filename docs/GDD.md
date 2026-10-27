@@ -144,7 +144,7 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 | Parámetro | Valor |
 |---|---|
 | Velocidad de carrera | 130 px/s (aceleración 1600 px/s², frenado 2200 px/s²) |
-| Velocidad de salto | 310 px/s; corte al soltar ×0.45 |
+| Velocidad de salto | 345 px/s; corte al soltar ×0.45 |
 | Gravedad / caída máxima | 980 px/s² / 360 px/s |
 | Coyote time / buffer de salto | 100 ms / 120 ms |
 | Ataque | startup 40 ms, activo 90 ms, recuperación 180 ms; alcance 22 px; 4 direcciones |

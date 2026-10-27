@@ -6,7 +6,7 @@ export const PLAYER = {
   runSpeed: 130,
   acceleration: 1600,
   deceleration: 2200,
-  jumpVelocity: 310,
+  jumpVelocity: 345,
   jumpCutMultiplier: 0.45,
   gravity: 980,
   maxFallSpeed: 360,
