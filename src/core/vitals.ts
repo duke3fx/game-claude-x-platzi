@@ -4,12 +4,16 @@ export interface VitalsConfig {
   readonly maxContext: number;
   readonly contextPerHit: number;
   readonly healCost: number;
+  /** Grace time (ms) after a hit during which further hits are ignored. */
+  readonly invulnerableMs: number;
 }
 
 export class Vitals {
   private readonly config: VitalsConfig;
   tokens: number;
   context = 0;
+  /** Grace time left (ms): while above zero, hits are ignored. */
+  invulnerableMs = 0;
 
   constructor(config: VitalsConfig) {
     this.config = config;
@@ -28,8 +32,26 @@ export class Vitals {
     return this.context >= this.config.healCost && this.tokens < this.config.maxTokens;
   }
 
-  takeDamage(amount: number): void {
+  get isInvulnerable(): boolean {
+    return this.invulnerableMs > 0;
+  }
+
+  /** Counts down the grace time after a hit. */
+  tick(dt: number): void {
+    this.invulnerableMs = Math.max(0, this.invulnerableMs - dt);
+  }
+
+  /** Takes a hit and starts the grace time, unless still in it. Returns whether the hit landed. */
+  takeDamage(amount: number): boolean {
+    if (this.isInvulnerable) return false;
     this.tokens = Math.max(0, this.tokens - amount);
+    this.invulnerableMs = this.config.invulnerableMs;
+    return true;
+  }
+
+  /** Starts the grace time without taking a hit (e.g. right after respawning). */
+  protect(): void {
+    this.invulnerableMs = Math.max(this.invulnerableMs, this.config.invulnerableMs);
   }
 
   registerHit(): void {

@@ -39,7 +39,13 @@ describe('JumpAssist', () => {
 });
 
 describe('Vitals', () => {
-  const config = { maxTokens: 5, maxContext: 99, contextPerHit: 11, healCost: 33 };
+  const config = {
+    maxTokens: 5,
+    maxContext: 99,
+    contextPerHit: 11,
+    healCost: 33,
+    invulnerableMs: 1000,
+  };
 
   it('heals only with enough context and missing tokens', () => {
     const vitals = new Vitals(config);
@@ -56,6 +62,29 @@ describe('Vitals', () => {
     vitals.takeDamage(9);
     expect(vitals.tokens).toBe(0);
     expect(vitals.isDead).toBe(true);
+  });
+
+  it('ignores hits during the grace time right after taking one', () => {
+    const vitals = new Vitals(config);
+    expect(vitals.takeDamage(1)).toBe(true);
+    expect(vitals.isInvulnerable).toBe(true);
+    vitals.tick(999);
+    expect(vitals.takeDamage(1)).toBe(false);
+    expect(vitals.tokens).toBe(4);
+    vitals.tick(1);
+    expect(vitals.isInvulnerable).toBe(false);
+    expect(vitals.takeDamage(1)).toBe(true);
+    expect(vitals.tokens).toBe(3);
+  });
+
+  it('can start the grace time without a hit, never shortening one in progress', () => {
+    const vitals = new Vitals(config);
+    vitals.protect();
+    expect(vitals.takeDamage(1)).toBe(false);
+    vitals.tick(400);
+    vitals.protect();
+    expect(vitals.invulnerableMs).toBe(1000);
+    expect(vitals.tokens).toBe(5);
   });
 });
 

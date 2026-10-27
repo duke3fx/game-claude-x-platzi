@@ -154,7 +154,7 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 | Coyote time / buffer de salto | 100 ms / 120 ms |
 | Ataque | startup 40 ms, activo 90 ms, recuperación 180 ms; alcance 22 px; 4 direcciones |
 | Pogo (golpe hacia abajo) | rebote de 260 px/s |
-| Golpe recibido | knockback 160 px/s, i-frames 900 ms, hit-stop 70 ms, sacudida de cámara leve |
+| Golpe recibido | knockback 160 px/s, i-frames 1,3 s (Clawd parpadea; si toca pinchos en ese lapso vuelve a suelo firme sin perder Tokens), hit-stop 70 ms, sacudida de cámara leve |
 | Completar | 360 px/s durante 190 ms (unos 68 px), i-frames durante el dash, cooldown 450 ms |
 | Curar | mantener 900 ms; cuesta 33 de Contexto y cura 1 Token. Cada golpe dado suma 11 de Contexto |
 | Chispa ✻ | toque < 180 ms; cuesta 33 de Contexto, 300 px/s, 2 de daño, atraviesa enemigos |

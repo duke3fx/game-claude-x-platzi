@@ -39,12 +39,16 @@ export const VITALS = {
   contextPerHit: 11,
   healCost: 33,
   healHoldMs: 900,
+  /** After a hit Clawd can't be hurt again for this long (Hollow Knight uses 1.3 s). */
+  invulnerableMs: 1300,
 } as const;
 
 export const HURT = {
   knockbackX: 160,
   knockbackY: 180,
-  invulnerableMs: 900,
+  /** While invulnerable Clawd blinks: half-transparent every other `flickerMs`. */
+  flickerMs: 80,
+  flickerAlpha: 0.35,
   hitStopMs: 70,
   shakeMs: 120,
   shakeIntensity: 0.006,

@@ -189,7 +189,6 @@ export class GameScene extends Phaser.Scene {
   private attackMs = 0;
   private dashMs = 0;
   private dashCooldownMs = 0;
-  private invulnerableMs = 0;
   private healHoldMs = 0;
   private walkMs = 0;
   private jumpCut = false;
@@ -712,7 +711,7 @@ export class GameScene extends Phaser.Scene {
     const seconds = dt / 1000;
 
     this.attackMs = Math.max(0, this.attackMs - dt);
-    this.invulnerableMs = Math.max(0, this.invulnerableMs - dt);
+    this.vitals.tick(dt);
     this.dashCooldownMs = Math.max(0, this.dashCooldownMs - dt);
     this.castMs = Math.max(0, this.castMs - dt);
     if (move.x !== 0) this.facing = move.x;
@@ -881,8 +880,9 @@ export class GameScene extends Phaser.Scene {
       });
     }
 
-    const flicker = this.invulnerableMs > 0 && Math.floor(this.invulnerableMs / 80) % 2 === 0;
-    this.view.setAlpha(flicker ? 0.35 : 1);
+    const { invulnerableMs } = this.vitals;
+    const flicker = invulnerableMs > 0 && Math.floor(invulnerableMs / HURT.flickerMs) % 2 === 0;
+    this.view.setAlpha(flicker ? HURT.flickerAlpha : 1);
   }
 
   private setSquash(x: number, y: number): void {
@@ -1198,6 +1198,7 @@ export class GameScene extends Phaser.Scene {
     );
     void bounds;
     if (this.isOnSpikes()) {
+      // Spikes always send Clawd back to safe ground, but cost nothing during the grace time.
       this.hurt(this.player.x);
       if (!this.dead) {
         this.player.setPosition(this.lastSafe.x, this.lastSafe.y);
@@ -1205,7 +1206,7 @@ export class GameScene extends Phaser.Scene {
       }
       return;
     }
-    if (this.invulnerableMs > 0 || this.dashMs > 0) return;
+    if (this.vitals.isInvulnerable || this.dashMs > 0) return;
     for (const enemy of this.enemies) {
       if (enemy.hp > 0 && Phaser.Geom.Rectangle.Overlaps(playerRect, hurtbox(enemy))) {
         this.hurt(enemy.sprite.x);
@@ -1218,10 +1219,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private hurt(fromX: number): void {
-    if (this.invulnerableMs > 0 && !this.isOnSpikes()) return;
     const damage = this.save.assistMode ? HURT.assistDamageMultiplier : 1;
-    this.vitals.takeDamage(Math.ceil(damage));
-    this.invulnerableMs = HURT.invulnerableMs;
+    if (!this.vitals.takeDamage(Math.ceil(damage))) return;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(Math.sign(this.player.x - fromX || 1) * HURT.knockbackX, -HURT.knockbackY);
     this.stopDance();
@@ -1249,7 +1248,7 @@ export class GameScene extends Phaser.Scene {
       this.view.setVisible(true);
       (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       this.vitals.restore();
-      this.invulnerableMs = HURT.invulnerableMs;
+      this.vitals.protect();
       this.dead = false;
     });
   }

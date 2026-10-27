@@ -63,7 +63,13 @@ describe('ActionBuffer', () => {
 
 describe('Vitals.spendContext', () => {
   it('spends only when there is enough Contexto', () => {
-    const vitals = new Vitals({ maxTokens: 5, maxContext: 99, contextPerHit: 11, healCost: 33 });
+    const vitals = new Vitals({
+      maxTokens: 5,
+      maxContext: 99,
+      contextPerHit: 11,
+      healCost: 33,
+      invulnerableMs: 1000,
+    });
     expect(vitals.spendContext(33)).toBe(false);
     for (let i = 0; i < 3; i++) vitals.registerHit();
     expect(vitals.spendContext(33)).toBe(true);
