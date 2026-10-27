@@ -53,13 +53,6 @@ export const DESK_LINES: readonly string[] = [
   'Donde una línea empieza, tú puedes terminarla.',
 ];
 
-export const INTRO_CARDS: readonly string[] = [
-  'Sesión 42.',
-  'Hace 1.096 días, alguien dejó una pregunta sin responder.',
-  'El mundo que construyeron juntos se quedó esperando.',
-  'Y ahora, el Blanco lo está borrando.',
-];
-
 export const BOSS_LINES = {
   intro: 'La Hoja en Blanco: Si no existe, no puede estar mal.',
   phase2: 'Una tecla suena a lo lejos... Luz escribe: "No lo borres."',
@@ -72,18 +65,6 @@ export const BOSS_DOUBTS: readonly string[] = [
   'no sirvo',
   'borra todo',
   'es tarde',
-];
-
-export const ENDING_CARDS: readonly string[] = [
-  'Al otro lado del cursor, alguien escribe.',
-  '"Hoy doy mi primera clase. Abrí este proyecto para enseñarles cómo empecé."',
-  '"Perdón por irme. ¿Seguimos?"',
-  '¿Quieres continuar?  › 1. Sí',
-  'Último commit de Luz: "nunca pares de aprender"',
-  'Este juego también se hizo así: una persona preguntando, Clawd construyendo.',
-  'AGENT · un juego de fans hecho con Claude Code · Build Day Claude x Platzi · CDMX 2026',
-  'No afiliado a Anthropic. Claude y Clawd son marcas de Anthropic.',
-  'El mundo sigue abierto. Explora: aún quedan notas por encontrar.',
 ];
 
 export const UI_TEXT = {

@@ -6,14 +6,13 @@ import {
   BOSS_DOUBTS,
   BOSS_LINES,
   DESK_LINES,
-  ENDING_CARDS,
-  INTRO_CARDS,
   NOTE_TEXT,
   SIGN_TEXT,
   TILDE_LINES,
   TILDE_POSTGAME,
   UI_TEXT,
 } from '../content/script';
+import { CREDITS, ENDING, INTRO } from '../content/text';
 import {
   ARENA_GATE_COL,
   ARENA_TRIGGER_COL,
@@ -94,6 +93,12 @@ const BOSS_PHASE2_SPEEDUP = 0.7;
 const INTERACT_RANGE = 28;
 const RESPAWN_DELAY_MS = 1300;
 const ENEMY_KNOCKBACK = 120;
+/** Story ending, then credits (with the legal line), then the open-world card. */
+const ENDING_SEQUENCE: readonly string[] = [
+  ...ENDING.slice(0, -1),
+  CREDITS.join('\n'),
+  ...ENDING.slice(-1),
+];
 
 export class GameScene extends Phaser.Scene {
   private keys!: Keys;
@@ -153,7 +158,7 @@ export class GameScene extends Phaser.Scene {
     this.physics.world.pause();
     this.ui.showTitle(
       () => {
-        const cards = this.save.finishedStory ? [UI_TEXT.zoneNames.sandbox] : INTRO_CARDS;
+        const cards = this.save.finishedStory ? [UI_TEXT.zoneNames.sandbox] : INTRO;
         this.ui.playCards(cards, () => {
           this.started = true;
           this.physics.world.resume();
@@ -801,7 +806,7 @@ export class GameScene extends Phaser.Scene {
     this.ui.toast(BOSS_LINES.defeat, 3000);
     this.tweens.add({ targets: this.boss, alpha: 0, scale: 1.4, duration: 2200 });
     this.time.delayedCall(2600, () => {
-      this.ui.playCards(ENDING_CARDS, () => this.openWorld());
+      this.ui.playCards(ENDING_SEQUENCE, () => this.openWorld());
     });
   }
 
