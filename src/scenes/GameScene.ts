@@ -26,6 +26,7 @@ import { approach } from '../core/approach';
 import { JumpAssist } from '../core/jumpAssist';
 import { createDefaultSave, type SaveData, SaveStore } from '../core/save';
 import { Vitals } from '../core/vitals';
+import { bakeParallax } from '../gfx/backgrounds';
 import { TILE_INDEX } from '../gfx/basicArt';
 import { NEIGHBOR, TILESET_COLUMNS, TILESET_KEY, tileIndex, ZONE_ORDER } from '../gfx/tiles';
 import { SCENES } from './sceneKeys';
@@ -150,6 +151,7 @@ export class GameScene extends Phaser.Scene {
   private squash = { x: 1, y: 1 };
   private trailMs = 0;
   private animMs = 0;
+  private parallax: Array<{ sprite: Phaser.GameObjects.TileSprite; factor: number }> = [];
   private zoneDecor: Partial<
     Record<ZoneId, { objects: Phaser.GameObjects.Components.AlphaSingle[]; baseAlphas: number[] }>
   > = {};
@@ -246,27 +248,20 @@ export class GameScene extends Phaser.Scene {
       const rng = new Phaser.Math.RandomDataGenerator([`agent-${zone}`]);
       const palette = ZONE_PALETTES[zone];
       const decor: Phaser.GameObjects.Components.AlphaSingle[] = [];
-      const layers = [
-        { factor: 0.2, depth: -40, color: palette.far, minH: 120, maxH: 260, step: 46 },
-        { factor: 0.45, depth: -30, color: palette.mid, minH: 70, maxH: 200, step: 38 },
-      ];
-      for (const layer of layers) {
-        const g = this.add.graphics().setScrollFactor(layer.factor, 1).setDepth(layer.depth);
-        g.fillStyle(hexToNumber(layer.color));
-        for (let x = -GAME_WIDTH; x < width * layer.factor + GAME_WIDTH; x += layer.step) {
-          const h = rng.between(layer.minH, layer.maxH);
-          this.drawSilhouette(
-            g,
-            zone,
-            x + rng.between(0, 20),
-            floorY + TILE,
-            rng.between(12, 34),
-            h,
-            rng,
-          );
-        }
-        decor.push(g);
-      }
+      // Painted parallax layers (far to near). They are pinned to the camera and scrolled by
+      // offsetting their texture, so they tile endlessly across the whole zone.
+      const cam = this.cameras.main;
+      const viewX = cam.width / 2 - GAME_WIDTH / 2;
+      const viewY = cam.height / 2 - GAME_HEIGHT / 2;
+      bakeParallax(this.textures, zone).forEach((layer, i) => {
+        const sprite = this.add
+          .tileSprite(viewX, viewY, GAME_WIDTH, GAME_HEIGHT, layer.key)
+          .setOrigin(0, 0)
+          .setScrollFactor(0)
+          .setDepth(-50 + i);
+        this.parallax.push({ sprite, factor: layer.scrollFactor });
+        decor.push(sprite);
+      });
       for (let x = 0; x < width; x += 140) {
         decor.push(
           this.add
@@ -327,32 +322,6 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private drawSilhouette(
-    g: Phaser.GameObjects.Graphics,
-    zone: ZoneId,
-    x: number,
-    baseY: number,
-    w: number,
-    h: number,
-    rng: Phaser.Math.RandomDataGenerator,
-  ): void {
-    const top = baseY - h;
-    if (zone === 'library') {
-      // Bookshelf towers with a few lit windows.
-      g.fillRect(x, top, w * 1.6, h);
-      return;
-    }
-    if (zone === 'margin') {
-      // Pencil strokes that fade mid-line.
-      g.fillRect(x, top, 3, h);
-      g.fillRect(x - w / 2, top + rng.between(0, 30), w, 3);
-      return;
-    }
-    // Sandbox: placeholder spires with pointed tops.
-    g.fillRect(x, top + w / 2, w, h);
-    g.fillTriangle(x, top + w / 2, x + w, top + w / 2, x + w / 2, top - w / 2);
-  }
-
   private createAmbience(): void {
     const view = { x: { min: 0, max: GAME_WIDTH }, y: { min: 0, max: GAME_HEIGHT } };
     const configs: Record<ZoneId, Phaser.Types.GameObjects.Particles.ParticleEmitterConfig> = {
@@ -401,7 +370,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   private updateAmbience(): void {
-    const view = this.cameras.main.worldView;
+    const cam = this.cameras.main;
+    for (const layer of this.parallax) layer.sprite.tilePositionX = cam.scrollX * layer.factor;
+    const view = cam.worldView;
     for (const emitter of Object.values(this.ambience)) emitter.setPosition(view.x, view.y);
     if (this.view)
       this.halo.setPosition(this.player.x, this.player.y).setVisible(this.view.visible);

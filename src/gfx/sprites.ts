@@ -266,22 +266,8 @@ export const ECO_17: PixelSprite = {
 export const EXPLORE: PixelSprite = {
   palette: { g: COLORS.cloudLight, f: COLORS.cloudDark, o: COLORS.ink },
   frames: [
-    [
-      '.gfffff..',
-      '.gofffof.',
-      'gffffffff',
-      '.ggggggg.',
-      '.g.g.g.g.',
-      '.g.g.g.g.',
-    ],
-    [
-      '.gfffff..',
-      '.gofffof.',
-      'gffffffff',
-      '.ggggggg.',
-      '.g.g.g.g.',
-      '...g...g.',
-    ],
+    ['.gfffff..', '.gofffof.', 'gffffffff', '.ggggggg.', '.g.g.g.g.', '.g.g.g.g.'],
+    ['.gfffff..', '.gofffof.', 'gffffffff', '.ggggggg.', '.g.g.g.g.', '...g...g.'],
   ],
 };
 
@@ -338,10 +324,16 @@ export const COMMIT: PixelSprite = {
 
 /** Note: collectible scrap of paper. Frames: 0, 1 (glint sweep). */
 export const NOTE: PixelSprite = {
-  palette: { i: COLORS.ivoryDark, w: COLORS.ivory, l: COLORS.cloudDark, F: COLORS.cloudMedium },
+  palette: {
+    i: COLORS.ivoryDark,
+    w: COLORS.ivory,
+    l: COLORS.cloudDark,
+    F: COLORS.cloudMedium,
+    s: '#5E5D59',
+  },
   frames: [
-    ['iiiiF.', 'illiFF', 'iiiiii', 'illlli', 'iiiiii', 'illiii', 'FFFFFF'],
-    ['wiiiF.', 'iwliFF', 'iiwiii', 'illwli', 'iiiiwi', 'illiiw', 'FFFFFF'],
+    ['iiiiF.', 'illiFs', 'iiiiis', 'illlis', 'iiiiis', 'illiis', 'ssssss'],
+    ['wiiiF.', 'iwliFs', 'iiwiis', 'illwls', 'iiiiws', 'illiis', 'ssssss'],
   ],
 };
 
@@ -413,8 +405,26 @@ export const LUZ_DESK: PixelSprite = {
 export const BRIDGE: PixelSprite = {
   palette: { k: COLORS.ink, p: COLORS.oat, P: COLORS.cloudLight, d: COLORS.cloudDark },
   frames: [
-    ['d.d.d.d.', '........', '........', '.d.d.d.d', 'd......d', '........', '..d..d..', '........'],
-    ['kkkkkkkk', 'ppppppPp', 'PpPppppp', 'kkkkkkkk', 'k......k', '.k....k.', '..k..k..', '...kk...'],
+    [
+      'd.d.d.d.',
+      '........',
+      '........',
+      '.d.d.d.d',
+      'd......d',
+      '........',
+      '..d..d..',
+      '........',
+    ],
+    [
+      'kkkkkkkk',
+      'ppppppPp',
+      'PpPppppp',
+      'kkkkkkkk',
+      'k......k',
+      '.k....k.',
+      '..k..k..',
+      '...kk...',
+    ],
   ],
 };
 
@@ -502,8 +512,8 @@ const BLANK_PAGE_IDLE = paint(PAGE_W, PAGE_H, blankPageCell);
 export const BLANK_PAGE: PixelSprite = {
   palette: {
     w: COLORS.erased,
-    e: COLORS.ivoryDark,
-    E: COLORS.cloudLight,
+    e: COLORS.cloudLight,
+    E: COLORS.cloudMedium,
     r: '#E9ECF3',
     k: COLORS.cloudLight,
     f: COLORS.oat,

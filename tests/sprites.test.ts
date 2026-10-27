@@ -9,8 +9,8 @@ function isPixelSprite(value: unknown): value is PixelSprite {
   return 'palette' in value && 'frames' in value && Array.isArray(value.frames);
 }
 
-const entries = Object.entries(sprites).filter(
-  (entry): entry is [string, PixelSprite] => isPixelSprite(entry[1]),
+const entries = Object.entries(sprites).filter((entry): entry is [string, PixelSprite] =>
+  isPixelSprite(entry[1]),
 );
 
 /** Names other modules import; sizes are in cells (width x height). */
