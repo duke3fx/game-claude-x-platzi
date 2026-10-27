@@ -73,6 +73,7 @@ export const UI_TEXT = {
   title: 'AGENT',
   subtitle: 'un juego de fans protagonizado por Clawd',
   pressStart: 'Pulsa Z o Enter para empezar',
+  pressStartTouch: 'Toca la pantalla para empezar',
   controls:
     '← → moverse · Z saltar · X garra · ↓+X rebote · V toque: chispa / mantener: curar · Shift completar · ↑ descansar · B bailar',
   rest: '↑ Descansar',
@@ -105,3 +106,14 @@ export const THINKING_VERBS: readonly string[] = [
   'Lollygagging…',
   'Canoodling…',
 ];
+
+/** Labels for the on-screen touch controls (key hints match the sign texts). */
+export const TOUCH_TEXT = {
+  jump: 'Saltar',
+  attack: 'Garra',
+  spell: '✻',
+  dash: 'Completar',
+  dance: 'Bailar',
+  fullscreen: 'Pantalla completa',
+  rotate: 'Gira el teléfono para jugar',
+} as const;

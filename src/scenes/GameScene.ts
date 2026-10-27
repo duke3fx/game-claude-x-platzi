@@ -46,6 +46,7 @@ import { bakeParallax } from '../gfx/backgrounds';
 import { TILE_INDEX } from '../gfx/basicArt';
 import { CLAWD_FRAME } from '../gfx/clawdPoses';
 import { NEIGHBOR, TILESET_COLUMNS, TILESET_KEY, tileIndex, ZONE_ORDER } from '../gfx/tiles';
+import { isTouchDevice } from '../input/touchControls';
 import { burst, clawSlash, confetti, dust, flashWhite, impactStar } from '../systems/effects';
 import { SCENES } from './sceneKeys';
 import type { UiScene } from './UiScene';
@@ -216,6 +217,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private showTitle(): void {
+    const touch = isTouchDevice();
     this.physics.world.pause();
     audioDirector.playMusic('title');
     this.ui.showTitle(
@@ -229,8 +231,8 @@ export class GameScene extends Phaser.Scene {
         });
       },
       UI_TEXT.subtitle,
-      UI_TEXT.pressStart,
-      UI_TEXT.controls,
+      touch ? UI_TEXT.pressStartTouch : UI_TEXT.pressStart,
+      touch ? '' : UI_TEXT.controls,
     );
     this.refreshHud();
   }
@@ -587,6 +589,8 @@ export class GameScene extends Phaser.Scene {
       }
     };
     window.addEventListener('keydown', onKeyDown);
+    // A tap closes reading panels, like Z or Enter.
+    this.input.on('pointerdown', () => this.actions.press('confirm'));
     window.addEventListener('keyup', onKeyUp);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       window.removeEventListener('keydown', onKeyDown);

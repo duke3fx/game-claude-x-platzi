@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { audioDirector } from './audio/AudioDirector';
 import { CANVAS_SCALE, GAME_HEIGHT, GAME_WIDTH } from './config/display';
 import { COLORS } from './config/palette';
+import { mountTouchControls } from './input/touchControls';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { UiScene } from './scenes/UiScene';
@@ -36,6 +37,8 @@ const game = new Phaser.Game({
   audio: { noAudio: true },
   scene: [BootScene, GameScene, UiScene],
 });
+
+mountTouchControls();
 
 // Browsers only allow audio after a user gesture; unlock() is cheap after the first call.
 for (const type of ['keydown', 'pointerdown'] as const) {

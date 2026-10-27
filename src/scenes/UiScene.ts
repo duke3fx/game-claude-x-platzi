@@ -25,6 +25,9 @@ interface TokenFx {
 }
 const CARD_MS = 3200;
 
+const isConfirmKey = (event: KeyboardEvent): boolean =>
+  event.code === 'KeyZ' || event.code === 'Enter' || event.code === 'Space';
+
 /** HUD and overlays, drawn by an unzoomed camera so text stays crisp. */
 export class UiScene extends Phaser.Scene {
   private hud!: Phaser.GameObjects.Graphics;
@@ -259,7 +262,7 @@ export class UiScene extends Phaser.Scene {
     g.fillRect(W / 2 - width / 2, H - 30, width * ratio, 8);
   }
 
-  /** Full-screen text cards. Advance with Z/Enter or automatically. */
+  /** Full-screen text cards. Advance with Z/Enter, a tap, or automatically. */
   playCards(cards: readonly string[], onDone: () => void): void {
     this.cardsPlaying = true;
     this.cardBg.setAlpha(1);
@@ -271,6 +274,7 @@ export class UiScene extends Phaser.Scene {
       const card = cards[index];
       if (card === undefined) {
         keyboard?.off('keydown', advance);
+        this.input.off('pointerdown', next);
         this.tweens.add({ targets: [this.cardBg, this.cardText], alpha: 0, duration: 500 });
         this.cardsPlaying = false;
         onDone();
@@ -283,17 +287,20 @@ export class UiScene extends Phaser.Scene {
         show();
       });
     };
-    const advance = (event: KeyboardEvent): void => {
-      if (event.code !== 'KeyZ' && event.code !== 'Enter' && event.code !== 'Space') return;
+    const next = (): void => {
       audioDirector.playSfx('select');
       index++;
       show();
     };
+    const advance = (event: KeyboardEvent): void => {
+      if (isConfirmKey(event)) next();
+    };
     keyboard?.on('keydown', advance);
+    this.input.on('pointerdown', next);
     show();
   }
 
-  /** Title screen: waits for a key, then calls onStart. */
+  /** Title screen: waits for a key or a tap, then calls onStart. */
   showTitle(onStart: () => void, subtitle: string, prompt: string, controls: string): void {
     const backdrop = createTitleBackdrop(this);
     const title = this.add
@@ -334,9 +341,9 @@ export class UiScene extends Phaser.Scene {
     });
     this.tweens.add({ targets: press, alpha: 0.3, duration: 900, yoyo: true, repeat: -1 });
     const keyboard = this.input.keyboard;
-    const start = (event: KeyboardEvent): void => {
-      if (event.code !== 'KeyZ' && event.code !== 'Enter' && event.code !== 'Space') return;
-      keyboard?.off('keydown', start);
+    const begin = (): void => {
+      keyboard?.off('keydown', onKey);
+      this.input.off('pointerdown', begin);
       audioDirector.playSfx('confirm');
       this.tweens.add({ targets: [title, ornament, sub, press, help], alpha: 0, duration: 400 });
       backdrop.fadeOut(() => {
@@ -347,6 +354,10 @@ export class UiScene extends Phaser.Scene {
         onStart();
       });
     };
-    keyboard?.on('keydown', start);
+    const onKey = (event: KeyboardEvent): void => {
+      if (isConfirmKey(event)) begin();
+    };
+    keyboard?.on('keydown', onKey);
+    this.input.on('pointerdown', begin);
   }
 }

@@ -140,6 +140,8 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 | Bailar (4 bailes en ciclo) | B | — |
 | Pausa | Esc / P | Start |
 
+**Táctil (móvil y tablet):** cruceta deslizable a la izquierda; a la derecha Saltar, Garra, ✻ (toque: chispa / mantener: curar), Completar y Bailar. Tocar la pantalla empieza y avanza textos. Solo horizontal: en un teléfono vertical se pide girarlo. Botón de pantalla completa.
+
 ### 4.2 Valores iniciales de "feel" (480×270, se ajustan probando)
 
 | Parámetro | Valor |

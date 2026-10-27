@@ -85,3 +85,9 @@ export const HIT_FX = {
   impactShakeIntensity: 0.0025,
   hurtStopMs: 150,
 } as const;
+
+/** On-screen controls for touch devices, as fractions of the d-pad radius. */
+export const TOUCH = {
+  deadZone: 0.22,
+  knobTravel: 0.55,
+} as const;
