@@ -673,15 +673,7 @@ export class GameScene extends Phaser.Scene {
         ATTACK.thickness,
       );
 
-    const slash = this.add.graphics().setDepth(6);
-    slash.fillStyle(hexToNumber(COLORS.ivory), 0.9);
-    slash.fillEllipse(rect.centerX, rect.centerY, rect.width, rect.height * 0.6);
-    this.tweens.add({
-      targets: slash,
-      alpha: 0,
-      duration: ATTACK.activeMs + 60,
-      onComplete: () => slash.destroy(),
-    });
+    this.drawSlash(up ? -Math.PI / 2 : down ? Math.PI / 2 : this.facing > 0 ? 0 : Math.PI);
 
     let hitSomething = false;
     for (const enemy of this.enemies) {
@@ -708,6 +700,35 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  /** A crescent "claw" arc around Clawd, pointing at `angle` (radians). */
+  private drawSlash(angle: number): void {
+    const SPREAD = 1.1;
+    const RADIUS = 20;
+    const g = this.add.graphics().setDepth(6).setPosition(this.player.x, this.player.y);
+    g.lineStyle(5, hexToNumber(COLORS.ivory), 0.95);
+    g.beginPath();
+    g.arc(0, 0, RADIUS, angle - SPREAD, angle + SPREAD);
+    g.strokePath();
+    g.lineStyle(2, hexToNumber(COLORS.clawdLight), 0.8);
+    g.beginPath();
+    g.arc(0, 0, RADIUS + 5, angle - SPREAD * 0.7, angle + SPREAD * 0.7);
+    g.strokePath();
+    this.tweens.add({
+      targets: g,
+      alpha: 0,
+      scale: 1.15,
+      duration: ATTACK.activeMs + 70,
+      onComplete: () => g.destroy(),
+    });
+  }
+
+  /** Brief white silhouette flash, the classic "you hit it" read. */
+  private flashWhite(target: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image): void {
+    const FLASH_MS = 80;
+    target.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+    this.time.delayedCall(FLASH_MS, () => target.clearTint());
+  }
+
   private hitStop(): void {
     this.physics.world.pause();
     this.time.delayedCall(HURT.hitStopMs, () => {
@@ -718,6 +739,8 @@ export class GameScene extends Phaser.Scene {
   private damageEnemy(enemy: Enemy): void {
     enemy.hp -= ATTACK.damage;
     enemy.flashMs = 120;
+    this.flashWhite(enemy.sprite);
+    this.burst(enemy.sprite.x, enemy.sprite.y, COLORS.ink, 6);
     this.vitals.registerHit();
     const body = enemy.sprite.body as Phaser.Physics.Arcade.Body;
     body.setVelocityX(Math.sign(enemy.sprite.x - this.player.x) * ENEMY_KNOCKBACK);
@@ -750,7 +773,7 @@ export class GameScene extends Phaser.Scene {
     for (const enemy of this.enemies) {
       if (enemy.hp <= 0) continue;
       enemy.flashMs = Math.max(0, enemy.flashMs - dt);
-      enemy.sprite.setAlpha(enemy.flashMs > 0 ? 0.4 : 1);
+
       enemy.t += dt;
       if (enemy.kind === 'garabato') this.updateGarabato(enemy);
       else this.updateTodo(enemy, dt);
@@ -853,7 +876,7 @@ export class GameScene extends Phaser.Scene {
     const speed = this.bossPhase2 ? BOSS_PHASE2_SPEEDUP : 1;
     this.bossModeMs += dt;
     this.bossFlashMs = Math.max(0, this.bossFlashMs - dt);
-    this.boss.setAlpha(this.bossFlashMs > 0 ? 0.5 : 1);
+
     const targetX = Phaser.Math.Clamp(this.player.x, (ARENA_GATE_COL + 4) * TILE, 154 * TILE);
     this.boss.x = approach(this.boss.x, targetX, 40 * (dt / 1000));
     this.boss.y = 10.5 * TILE + Math.sin(this.time.now / 700) * 8;
@@ -943,6 +966,8 @@ export class GameScene extends Phaser.Scene {
   private damageBoss(): void {
     this.bossHp -= ATTACK.damage;
     this.bossFlashMs = 100;
+    this.flashWhite(this.boss);
+    this.burst(this.boss.x, this.boss.y + 20, COLORS.ink, 8);
     this.vitals.registerHit();
     if (this.bossHp === Math.floor(BOSS_HP / 2)) this.ui.toast(BOSS_LINES.phase2, 3500);
     if (this.bossHp <= 0) this.defeatBoss();
