@@ -139,6 +139,9 @@ export class GameScene extends Phaser.Scene {
   private hazards: Hazard[] = [];
   private ambience: Partial<Record<ZoneId, Phaser.GameObjects.Particles.ParticleEmitter>> = {};
   private halo!: Phaser.GameObjects.Image;
+  private zoneDecor: Partial<
+    Record<ZoneId, { objects: Phaser.GameObjects.Components.AlphaSingle[]; baseAlphas: number[] }>
+  > = {};
 
   constructor() {
     super(SCENES.game);
@@ -210,50 +213,65 @@ export class GameScene extends Phaser.Scene {
   /**
    * Hollow-Knight-style depth: pale foggy far layers, darker mid layers, light shafts,
    * and near-black foreground silhouettes that pass in front of the player.
+   * Each zone owns a full set of backdrop layers; only the current zone's set is visible,
+   * because slow parallax layers would otherwise leak one zone's scenery into the next.
    */
   private drawBackdrop(width: number): void {
-    const rng = new Phaser.Math.RandomDataGenerator(['agent']);
     const floorY = (WORLD_ROWS - 3) * TILE;
-    const layers = [
-      { factor: 0.2, depth: -40, color: 'far' as const, minH: 120, maxH: 260, step: 46 },
-      { factor: 0.45, depth: -30, color: 'mid' as const, minH: 70, maxH: 200, step: 38 },
-    ];
-    for (const layer of layers) {
-      const g = this.add.graphics().setScrollFactor(layer.factor, 1).setDepth(layer.depth);
-      for (let s = -GAME_WIDTH; s < width; s += layer.step) {
-        const zone = zoneAtCol(Math.floor((s + GAME_WIDTH / 2) / TILE));
-        const palette = ZONE_PALETTES[zone];
-        const x = s * layer.factor + rng.between(0, GAME_WIDTH);
-        const h = rng.between(layer.minH, layer.maxH);
-        const w = rng.between(12, 34);
-        g.fillStyle(hexToNumber(palette[layer.color]));
-        this.drawSilhouette(g, zone, x, floorY + TILE, w, h, rng);
-      }
-    }
-    // Fog bands and light shafts.
-    for (let s = 0; s < width; s += 160) {
-      const zone = zoneAtCol(Math.floor((s + GAME_WIDTH / 2) / TILE));
+    for (const zone of ['sandbox', 'library', 'margin'] as const) {
+      const rng = new Phaser.Math.RandomDataGenerator([`agent-${zone}`]);
       const palette = ZONE_PALETTES[zone];
-      this.add
-        .image(s * 0.5 + rng.between(0, 200), rng.between(150, 250), 'fog')
-        .setDisplaySize(rng.between(260, 420), rng.between(50, 90))
-        .setTint(hexToNumber(palette.fog))
-        .setAlpha(0.22)
-        .setScrollFactor(0.5, 1)
-        .setDepth(-20);
-      const shaftTint = zone === 'library' ? palette.accent : palette.fog;
-      this.add
-        .image(s * 0.7 + rng.between(0, 200), 0, 'shaft')
-        .setOrigin(0.5, 0)
-        .setDisplaySize(rng.between(50, 90), floorY)
-        .setAngle(rng.between(-12, 12))
-        .setTint(hexToNumber(shaftTint))
-        .setAlpha(zone === 'margin' ? 0.12 : 0.2)
-        .setBlendMode(Phaser.BlendModes.ADD)
-        .setScrollFactor(0.7, 1)
-        .setDepth(-15);
+      const decor: Phaser.GameObjects.Components.AlphaSingle[] = [];
+      const layers = [
+        { factor: 0.2, depth: -40, color: palette.far, minH: 120, maxH: 260, step: 46 },
+        { factor: 0.45, depth: -30, color: palette.mid, minH: 70, maxH: 200, step: 38 },
+      ];
+      for (const layer of layers) {
+        const g = this.add.graphics().setScrollFactor(layer.factor, 1).setDepth(layer.depth);
+        g.fillStyle(hexToNumber(layer.color));
+        for (let x = -GAME_WIDTH; x < width * layer.factor + GAME_WIDTH; x += layer.step) {
+          const h = rng.between(layer.minH, layer.maxH);
+          this.drawSilhouette(
+            g,
+            zone,
+            x + rng.between(0, 20),
+            floorY + TILE,
+            rng.between(12, 34),
+            h,
+            rng,
+          );
+        }
+        decor.push(g);
+      }
+      for (let x = 0; x < width; x += 140) {
+        decor.push(
+          this.add
+            .image(x * 0.5 + rng.between(0, 120), rng.between(150, 250), 'fog')
+            .setDisplaySize(rng.between(260, 420), rng.between(50, 90))
+            .setTint(hexToNumber(palette.fog))
+            .setAlpha(0.22)
+            .setScrollFactor(0.5, 1)
+            .setDepth(-20),
+        );
+        decor.push(
+          this.add
+            .image(x * 0.7 + rng.between(0, 120), 0, 'shaft')
+            .setOrigin(0.5, 0)
+            .setDisplaySize(rng.between(50, 90), floorY)
+            .setAngle(rng.between(-12, 12))
+            .setTint(hexToNumber(zone === 'library' ? palette.accent : palette.fog))
+            .setAlpha(zone === 'margin' ? 0.12 : 0.2)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setScrollFactor(0.7, 1)
+            .setDepth(-15),
+        );
+      }
+      const baseAlphas = decor.map((obj) => obj.alpha);
+      this.zoneDecor[zone] = { objects: decor, baseAlphas };
+      if (zone !== this.zone) for (const obj of decor) obj.setAlpha(0);
     }
     // Foreground: dark roots/stalactites from the ceiling and rubble along the bottom edge.
+    const rng = new Phaser.Math.RandomDataGenerator(['agent-fg']);
     const fg = this.add.graphics().setScrollFactor(1.25, 1).setDepth(30);
     for (let s = 0; s < width * 1.25; s += 70) {
       const zone = zoneAtCol(Math.floor(s / 1.25 / TILE));
@@ -269,6 +287,20 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.createAmbience();
+  }
+
+  /** Crossfade the backdrop sets when the player changes zone. */
+  private showZoneDecor(zone: ZoneId): void {
+    const FADE_MS = 1200;
+    for (const [id, set] of Object.entries(this.zoneDecor)) {
+      set.objects.forEach((obj, i) => {
+        this.tweens.add({
+          targets: obj,
+          alpha: id === zone ? (set.baseAlphas[i] ?? 1) : 0,
+          duration: FADE_MS,
+        });
+      });
+    }
   }
 
   private drawSilhouette(
@@ -338,8 +370,8 @@ export class GameScene extends Phaser.Scene {
     this.halo = this.add
       .image(0, 0, 'halo')
       .setTint(hexToNumber(COLORS.clawdLight))
-      .setAlpha(0.28)
-      .setScale(2.2)
+      .setAlpha(0.38)
+      .setScale(2.4)
       .setBlendMode(Phaser.BlendModes.ADD)
       .setDepth(4);
   }
@@ -1084,6 +1116,7 @@ export class GameScene extends Phaser.Scene {
     this.zone = zone;
     this.cameras.main.setBackgroundColor(ZONE_PALETTES[zone].background);
     for (const [id, emitter] of Object.entries(this.ambience)) emitter.emitting = id === zone;
+    this.showZoneDecor(zone);
     this.ui.zoneTitle(UI_TEXT.zoneNames[zone]);
   }
 
