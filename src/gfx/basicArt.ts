@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import { TILE } from '../config/display';
 import { COLORS, ZONE_PALETTES } from '../config/palette';
+import { MINION_SPRITES } from './minions';
 import { bakeSprite, type PixelSprite } from './pixelArt';
 import { RIVAL_SPRITES } from './rivals';
 import { COMMIT as COMMIT_ART, LUZ_DESK, NOTE as NOTE_ART, TILDE as TILDE_ART } from './sprites';
@@ -152,6 +153,7 @@ export function bakeBasicArt(textures: Phaser.Textures.TextureManager): void {
   bakeSprite(textures, 'bench', BENCH);
   // Rival AIs, their minions and their projectiles; the texture key is the sprite's name.
   for (const [key, sprite] of Object.entries(RIVAL_SPRITES)) bakeSprite(textures, key, sprite);
+  for (const [key, sprite] of Object.entries(MINION_SPRITES)) bakeSprite(textures, key, sprite);
   drawCanvas(textures, 'tilesBasic', TILE * 5, TILE, drawTiles);
   drawCanvas(textures, 'page', PAGE_WIDTH, PAGE_HEIGHT, (ctx) =>
     drawPage(ctx, PAGE_WIDTH, PAGE_HEIGHT, false),

@@ -19,8 +19,6 @@ const SPECS: Readonly<Record<keyof typeof RIVAL_SPRITES, Spec>> = {
   luna: BOSS,
   brasa: BOSS,
   nebula: BOSS,
-  grokBot: { frames: 2, max: [14, 13] },
-  dots: { frames: 3, max: [16, 10] },
   moonRock: { frames: 1, max: [8, 8] },
   crescent: { frames: 1, max: [10, 10] },
   fireball: { frames: 2, max: [9, 9] },

@@ -9,6 +9,7 @@ import {
   DASH,
   HIT_FX,
   HURT,
+  MINION,
   PLAYER,
   REST,
   SPELL,
@@ -58,6 +59,7 @@ import { SoulSpark } from '../entities/SoulSpark';
 import { bakeParallax } from '../gfx/backgrounds';
 import { TILE_INDEX } from '../gfx/basicArt';
 import { CLAWD_FRAME } from '../gfx/clawdPoses';
+import { DOTS_KEYS, GROK_BOT_KEYS } from '../gfx/minions';
 import { NEIGHBOR, TILESET_COLUMNS, TILESET_KEY, tileIndex, ZONE_ORDER } from '../gfx/tiles';
 import { isTouchDevice } from '../input/touchControls';
 import { BossFight } from '../systems/bossFight';
@@ -74,6 +76,8 @@ type Keys = Record<
 interface Enemy {
   readonly kind: 'grokBot' | 'dots';
   readonly sprite: Phaser.Physics.Arcade.Sprite;
+  /** Index into the kind's texture list; a Grok Bot changes shape when hit. */
+  variant: number;
   readonly homeX: number;
   readonly homeY: number;
   readonly label: Phaser.GameObjects.Text | null;
@@ -83,6 +87,12 @@ interface Enemy {
   mode: 'hover' | 'warn' | 'dive' | 'return';
   modeMs: number;
   flashMs: number;
+}
+
+/** The part of an enemy that hurts on touch: its physics body, a bit smaller than the art. */
+function hurtbox(enemy: Enemy): Phaser.Geom.Rectangle {
+  const body = enemy.sprite.body as Phaser.Physics.Arcade.Body;
+  return new Phaser.Geom.Rectangle(body.x, body.y, body.width, body.height);
 }
 
 interface Pickup {
@@ -512,19 +522,32 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnEnemy(kind: Enemy['kind'], x: number, y: number): void {
-    const sprite = this.physics.add.sprite(x, y - 8, kind, 0).setDepth(4);
+    // Each one in turn wears the next look, so a short run shows every variant.
+    const variant = this.enemies.filter((enemy) => enemy.kind === kind).length;
+    const keys = kind === 'grokBot' ? GROK_BOT_KEYS : DOTS_KEYS;
+    const sprite = this.physics.add
+      .sprite(x, y, keys[variant % keys.length] ?? kind, 0)
+      .setDepth(4);
     const body = sprite.body as Phaser.Physics.Arcade.Body;
     let label: Phaser.GameObjects.Text | null = null;
     if (kind === 'grokBot') {
+      const { width, height } = MINION.grokHurtbox;
+      sprite.setY(y - sprite.height / 2);
+      body
+        .setSize(width, height, false)
+        .setOffset((sprite.width - width) / 2, sprite.height - height);
       body.setGravityY(PLAYER.gravity);
       this.physics.add.collider(sprite, this.layer);
     } else {
+      const { width, height } = MINION.dotsHurtbox;
+      sprite.setY(y - MINION.dotsHover);
+      body.setSize(width, height);
       body.setAllowGravity(false);
       label = this.add
-        .text(x, y - 24, UI_TEXT.dotsTyping, {
+        .text(x, sprite.y - 16, '', {
           fontFamily: 'monospace',
           fontSize: '7px',
-          color: COLORS.oat,
+          color: COLORS.danger,
         })
         .setOrigin(0.5)
         .setResolution(CANVAS_SCALE)
@@ -533,8 +556,9 @@ export class GameScene extends Phaser.Scene {
     this.enemies.push({
       kind,
       sprite,
+      variant,
       homeX: x,
-      homeY: y - 8,
+      homeY: sprite.y,
       label,
       hp: kind === 'grokBot' ? GROK_BOT_HP : DOTS_HP,
       dir: -1,
@@ -906,7 +930,13 @@ export class GameScene extends Phaser.Scene {
     if (gainContext) this.vitals.registerHit();
     const body = enemy.sprite.body as Phaser.Physics.Arcade.Body;
     body.setVelocityX(Math.sign(enemy.sprite.x - this.player.x || 1) * ENEMY_KNOCKBACK);
-    if (enemy.kind === 'grokBot') body.setVelocityY(-GROK_BOT_HIT_HOP);
+    if (enemy.kind === 'grokBot') {
+      body.setVelocityY(-GROK_BOT_HIT_HOP);
+      // Grok Bots are shapeshifting blobs: a hit pops them into another shape.
+      enemy.variant += GROK_BOT_KEYS.length / 2;
+      const key = GROK_BOT_KEYS[enemy.variant % GROK_BOT_KEYS.length];
+      if (key && enemy.hp > 0) enemy.sprite.setTexture(key, 0);
+    }
     if (enemy.hp <= 0) this.killEnemy(enemy);
   }
 
@@ -925,10 +955,7 @@ export class GameScene extends Phaser.Scene {
       ease: 'Quad.easeIn',
       onComplete: () => enemy.sprite.setVisible(false),
     });
-    if (enemy.label) {
-      enemy.label.setText(UI_TEXT.dotsDone);
-      this.tweens.add({ targets: enemy.label, alpha: 0, y: enemy.label.y - 10, duration: 900 });
-    }
+    enemy.label?.setVisible(false);
   }
 
   private updateEnemies(dt: number): void {
@@ -973,7 +1000,7 @@ export class GameScene extends Phaser.Scene {
         if (dist < DOTS_TRIGGER_RANGE && !this.dead) {
           enemy.mode = 'warn';
           enemy.modeMs = 0;
-          enemy.label?.setText(UI_TEXT.dotsAlert).setColor(COLORS.danger);
+          enemy.label?.setText(UI_TEXT.dotsAlert);
         }
         break;
       case 'warn':
@@ -997,7 +1024,7 @@ export class GameScene extends Phaser.Scene {
         if (hd < 4) {
           enemy.mode = 'hover';
           enemy.t = 0;
-          enemy.label?.setText(UI_TEXT.dotsTyping).setColor(COLORS.oat);
+          enemy.label?.setText('');
         } else body.setVelocity((hx / hd) * 80, (hy / hd) * 80);
         break;
       }
@@ -1133,7 +1160,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.invulnerableMs > 0 || this.dashMs > 0) return;
     for (const enemy of this.enemies) {
-      if (enemy.hp > 0 && Phaser.Geom.Rectangle.Overlaps(playerRect, enemy.sprite.getBounds())) {
+      if (enemy.hp > 0 && Phaser.Geom.Rectangle.Overlaps(playerRect, hurtbox(enemy))) {
         this.hurt(enemy.sprite.x);
         return;
       }

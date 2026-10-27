@@ -43,7 +43,7 @@ export const TILDE_LINES: readonly string[] = [
   'Tilde: ¡Un protagonista! ¡Por fin! Soy Tilde. Luz me iba a dar una cara. Me quedé en el boceto.',
   'Tilde: Arriba está la Luz. Bueno, el cursor. Bueno, ella. Es complicado.',
   'Tilde: Tres IAs rivales se metieron en el Borrador: Luna, Brasa y Nébula. Ve a la derecha y demuéstrales quién es Clawd.',
-  'Tilde: Cuidado con los Grok Bots y los Dots. Los Dots siempre están escribiendo… y luego se lanzan.',
+  'Tilde: Cuidado con los Grok Bots: son blobs que cambian de forma cuando les pegas. Y los Dots parecen peluches… hasta que gritan ¡! y se lanzan.',
 ];
 
 export const TILDE_POSTGAME: readonly string[] = [
@@ -102,9 +102,7 @@ export const UI_TEXT = {
   notes: (found: number, total: number) => `Notas ${found}/${total}`,
   rivalBeaten: (name: string, beaten: number, total: number) =>
     `${name} superada · Rivales ${beaten}/${total}`,
-  dotsTyping: 'escribiendo…',
   dotsAlert: '¡!',
-  dotsDone: '// enviado',
 } as const;
 
 export const DANCE_NAMES = {

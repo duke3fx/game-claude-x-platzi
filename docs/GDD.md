@@ -168,8 +168,8 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 
 | Enemigo | Zona | Comportamiento | Vida |
 |---|---|---|---|
-| **Grok Bot** | Arenero / Biblioteca | Robot cuadrado con visor en diagonal. Patrulla y gira en los bordes; daño por contacto | 2 |
-| **Dots** | Biblioteca | Tres puntos de "escribiendo…". Flotan y, cuando Clawd se acerca, cambian a `¡!` y se lanzan en picada. Al morir: `// enviado` | 1 |
+| **Grok Bot** | Arenero / Biblioteca | Blob azul plano con dos ojos inclinados; cada uno tiene una forma (círculo, nube, baldosa, destello, flor, corazón, píldora, hexágono). Patrulla y gira en los bordes; al recibir un golpe cambia de forma. Daño por contacto | 2 |
+| **Dots** | Biblioteca | Peluches esponjosos: nube azul con boina, rana verde, gomita amarilla con lentes y corazón con gafas de sol. Flotan y, cuando Clawd se acerca, gritan `¡!` y se lanzan en picada | 1 |
 
 **Tres IAs rivales** (parodias de fans), una por zona, cada una en una arena que se cierra al entrar. Su cuerpo no hace daño: solo sus ataques. Todas tienen aviso magenta antes de golpear y una fase 2 al 50 % de vida. Al vencer a una, la arena se abre, se recuperan los Tokens y se guarda el progreso (`flags: boss:<id>`).
 

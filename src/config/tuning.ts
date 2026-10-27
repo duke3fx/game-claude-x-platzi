@@ -86,6 +86,14 @@ export const HIT_FX = {
   hurtStopMs: 150,
 } as const;
 
+/** Small enemies: hurtboxes (px) a bit smaller than their art, so touching feels fair. */
+export const MINION = {
+  grokHurtbox: { width: 22, height: 20 },
+  dotsHurtbox: { width: 22, height: 22 },
+  /** How far above its home tile a Dots hovers (px). */
+  dotsHover: 14,
+} as const;
+
 /** On-screen controls for touch devices, as fractions of the d-pad radius. */
 export const TOUCH = {
   deadZone: 0.22,

@@ -395,65 +395,6 @@ export const nebula: PixelSprite = {
 };
 
 // ---------------------------------------------------------------------------------------------
-// Small enemies
-// ---------------------------------------------------------------------------------------------
-
-const GROK_BODY: Frame = [
-  '........m...',
-  '........h...',
-  '..kkkkkkkkk.',
-  '.khhhhhhhhhk',
-  '.khbbbbWWbbk',
-  '.khbbbWWbmmk',
-  '.khbbWWbbmmk',
-  '.khbWWbbbbbk',
-  '.khWWbbbbbbk',
-  '.khbbbbbbbbk',
-  '..kkkkkkkkk.',
-];
-
-/** Grok-bot: boxy walker with a "/" visor and a magenta LED. Frames: walk0, walk1. */
-export const grokBot: PixelSprite = {
-  palette: {
-    b: '#1E1E22',
-    h: '#3A3A44',
-    k: '#0A0A0C',
-    W: '#F2F2F2',
-    m: COLORS.danger,
-  },
-  frames: [
-    [...GROK_BODY, '.hh......hh.', '.hhh.....hhh'],
-    [...GROK_BODY, '...hh..hh...', '...hhh.hhh..'],
-  ],
-};
-
-const DOT_SMALL: Frame = ['.oo.', 'olmo', 'ommo', '.oo.'];
-const DOT_FACE: Frame = ['.oooo.', 'olmmmo', 'omemeo', 'omemeo', 'ommmmo', '.oooo.'];
-const DOT_ANGRY: Frame = ['.oooo.', 'olmmmo', 'oemmeo', 'omeemo', 'ommmmo', '.oooo.'];
-
-/** Heights are the top rows of the left, middle and right dots; `squeeze` pulls them inward. */
-function dotsFrame(left: number, middle: number, right: number, face: Frame, squeeze = 0): Frame {
-  const blank: Frame = Array.from({ length: 9 }, () => '.'.repeat(16));
-  const sides = overlay(overlay(blank, DOT_SMALL, squeeze, left), DOT_SMALL, 12 - squeeze, right);
-  return overlay(sides, face, 5, middle);
-}
-
-/** A "typing..." trio; the big middle dot has the face. Frames: type0, type1, dive. */
-export const dots: PixelSprite = {
-  palette: {
-    m: COLORS.danger,
-    l: '#FF9BE0',
-    o: '#4A0E3A',
-    e: '#141414',
-  },
-  frames: [
-    dotsFrame(1, 3, 1, DOT_FACE),
-    dotsFrame(4, 1, 4, DOT_FACE),
-    dotsFrame(2, 2, 5, DOT_ANGRY, 3),
-  ],
-};
-
-// ---------------------------------------------------------------------------------------------
 // Projectiles
 // ---------------------------------------------------------------------------------------------
 
@@ -656,8 +597,6 @@ export const RIVAL_SPRITES = {
   luna,
   brasa,
   nebula,
-  grokBot,
-  dots,
   moonRock,
   crescent,
   fireball,

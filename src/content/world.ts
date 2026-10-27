@@ -157,6 +157,7 @@ export const ENTITIES: readonly WorldEntity[] = [
   { kind: 'bench', col: 53, row: 16, id: 'b1' },
   { kind: 'sign', col: 55, row: 16, id: 'rival' },
   { kind: 'sign', col: 78, row: 16, id: 'heal' },
+  { kind: 'dots', col: 82, row: 11, id: 't4' },
   { kind: 'grokBot', col: 86, row: 16, id: 'g3' },
   { kind: 'dots', col: 90, row: 8, id: 't1' },
   { kind: 'note', col: 96, row: 7, id: 'theJump' },
