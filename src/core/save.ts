@@ -1,6 +1,6 @@
 /** Versioned save data persisted in localStorage behind a small adapter. */
 export const SAVE_VERSION = 1;
-export const SAVE_KEY = 'borrador.save';
+export const SAVE_KEY = 'agent.save';
 
 export type AbilityId = 'complete';
 

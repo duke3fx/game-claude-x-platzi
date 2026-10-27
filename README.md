@@ -1,4 +1,4 @@
-# BORRADOR
+# AGENT
 
 Un juego de fans protagonizado por **Clawd**, hecho con Claude Code para la Build Day **Claude x Platzi**.
 Plataformas y acción 2D con alma de metroidvania: unos 3 minutos de historia principal y, después, un mapa abierto para explorar.

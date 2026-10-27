@@ -1,4 +1,4 @@
-# BORRADOR — Documento de diseño (GDD)
+# AGENT — Documento de diseño (GDD)
 
 > Juego de fans protagonizado por Clawd, hecho con Claude Code para la Build Day **Claude x Platzi**.
 > No está afiliado a Anthropic. Claude y Clawd son marcas de Anthropic.
@@ -7,14 +7,15 @@
 
 | Tema | Decisión | Alternativa descartada |
 |---|---|---|
+| Nombre | **AGENT**. El mundo interior se llama "el Borrador" | "Borrador" como título |
 | Alcance | **~3 min de recorrido principal**. Al terminar, el **mapa queda abierto** para explorar con contenido post-final | Slice lineal de 10 min |
-| Historia | **"Borrador"**: Clawd dentro del videojuego inacabado de su humana, Luz | "Fin de Turno" (mito melancólico), "La Vigilia" (valores/identidad) |
+| Historia | Clawd dentro del videojuego inacabado de su humana, Luz | "Fin de Turno" (mito melancólico), "La Vigilia" (valores/identidad) |
 | Estilo visual | **Pixel art en todo el mundo**, celda de 2 px a 480×270. El tono HK sale de paletas oscuras, siluetas en parallax, niebla, partículas y viñeta | Mundo vectorial con héroe pixel (densidad de píxel inconsistente) |
 | Idioma | **Español (LATAM neutro)**. Textos centralizados para añadir EN después | Bilingüe desde el día 1 |
 | Motor | **Phaser 4.2.1** + Vite 8 + TypeScript 7 (strict) + Biome 2.6 + Vitest 5, pnpm | Kaplay, Excalibur, PixiJS a mano |
 | Arte y audio | **100 % generado por código**: sprites en grillas ASCII + paleta, fondos procedurales, SFX sintetizados con WebAudio | Assets externos |
 | Habilidad desbloqueable | **Completar** (dash con invulnerabilidad que materializa puentes punteados) | Doble salto |
-| Marca | Nombre del producto sin "Claude" ni "Clawd". Clawd fiel al original (`#D77757`, ojos `#141414`). No se usa el logo de Anthropic. Ningún color de marca significa "enemigo" | |
+| Marca | El nombre del producto no lleva "Claude" ni "Clawd". Clawd fiel al original (`#D77757`, ojos `#141414`). No se usa el logo de Anthropic. Ningún color de marca significa "enemigo" | |
 
 ## 1. Visión
 

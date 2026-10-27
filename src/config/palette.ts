@@ -21,6 +21,7 @@ export const COLORS = {
   iris: '#4A3AA7',
   periwinkle: '#CDE2FB',
   error: '#BF4D43',
+  fig: '#C46686',
   danger: '#FF3EC8',
   erased: '#FFFFFF',
 } as const;

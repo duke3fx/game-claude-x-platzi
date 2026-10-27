@@ -1,4 +1,4 @@
-# BORRADOR: reglas para agentes
+# AGENT: reglas para agentes
 
 - Diseño y alcance: `docs/GDD.md`. El recorrido principal dura ~3 min y luego el mapa queda abierto. No amplíes el alcance sin preguntar.
 - Antes de dar algo por terminado: `pnpm check` (Biome + `tsc --noEmit` + Vitest + build) en verde.

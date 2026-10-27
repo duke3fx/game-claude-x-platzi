@@ -1,8 +1,8 @@
 {
-  "name": "borrador",
+  "name": "agent-game",
   "private": true,
   "version": "0.1.0",
-  "description": "BORRADOR — un juego de fans protagonizado por Clawd (Claude x Platzi Build Day)",
+  "description": "AGENT — un juego de fans protagonizado por Clawd (Claude x Platzi Build Day)",
   "type": "module",
   "engines": {
     "node": ">=24"
