@@ -2,6 +2,10 @@ import Phaser from 'phaser';
 import { audioDirector } from '../audio/AudioDirector';
 import { GAME_HEIGHT, GAME_WIDTH, UI_ZOOM } from '../config/display';
 import { COLORS, hexToNumber } from '../config/palette';
+import { WARDROBE_TEXT } from '../content/script';
+import type { AccessoryId } from '../core/accessories';
+import { gearKey } from '../gfx/accessories';
+import { isTouchDevice } from '../input/touchControls';
 import { createTitleBackdrop } from '../systems/titleBackdrop';
 import { SCENES } from './sceneKeys';
 
@@ -24,6 +28,34 @@ interface TokenFx {
   readonly at: number;
 }
 const CARD_MS = 3200;
+
+/** Bench wardrobe layout: a strip high on the screen, so Clawd on the bench stays visible. */
+const WARDROBE = {
+  centerY: 190,
+  width: 720,
+  height: 196,
+  slotW: 88,
+  slotH: 72,
+  slotGap: 16,
+  slotY: 170,
+  iconScale: 1.5,
+} as const;
+
+/** One wardrobe slot as the game describes it. */
+export interface WardrobeSlotView {
+  readonly id: AccessoryId | null;
+  readonly name: string;
+  readonly detail: string;
+  readonly locked: boolean;
+  readonly equipped: boolean;
+}
+
+interface WardrobeSlotUi {
+  readonly frame: Phaser.GameObjects.Rectangle;
+  readonly clawd: Phaser.GameObjects.Image;
+  readonly gear: Phaser.GameObjects.Image;
+  readonly mark: Phaser.GameObjects.Text;
+}
 
 const isConfirmKey = (event: KeyboardEvent): boolean =>
   event.code === 'KeyZ' || event.code === 'Enter' || event.code === 'Space';
@@ -49,6 +81,10 @@ export class UiScene extends Phaser.Scene {
   private bossCardEpithet!: Phaser.GameObjects.Text;
   private prevTokens = -1;
   private tokenFx: TokenFx[] = [];
+  private wardrobe: Phaser.GameObjects.Container | null = null;
+  private wardrobeSlots: WardrobeSlotUi[] = [];
+  private wardrobeName!: Phaser.GameObjects.Text;
+  private wardrobeDetail!: Phaser.GameObjects.Text;
   panelOpen = false;
   cardsPlaying = false;
 
@@ -286,6 +322,90 @@ export class UiScene extends Phaser.Scene {
     this.panelOpen = false;
   }
 
+  /** Shows (or refreshes) the bench wardrobe with the cursor on one slot. */
+  showWardrobe(slots: readonly WardrobeSlotView[], cursor: number): void {
+    if (!this.wardrobe) this.buildWardrobe(slots.length);
+    this.wardrobe?.setVisible(true);
+    this.hintText.setVisible(false);
+    this.toastTimer?.remove();
+    this.toastText.setAlpha(0);
+    slots.forEach((slot, index) => {
+      const ui = this.wardrobeSlots[index];
+      if (!ui) return;
+      const selected = index === cursor;
+      ui.frame
+        .setStrokeStyle(
+          selected ? 3 : 1,
+          hexToNumber(selected ? COLORS.clawdLight : COLORS.cloudMedium),
+          selected ? 1 : 0.5,
+        )
+        .setFillStyle(hexToNumber(COLORS.ink), selected ? 0.9 : 0.6);
+      ui.clawd.setAlpha(slot.locked ? 0.35 : 1);
+      ui.gear.setVisible(slot.id !== null);
+      if (slot.id !== null) {
+        ui.gear.setTexture(gearKey('clawd', slot.id), 0);
+        // Locked accessories show only as a silhouette.
+        if (slot.locked)
+          ui.gear.setTint(hexToNumber(COLORS.cloudMedium)).setTintMode(Phaser.TintModes.FILL);
+        else ui.gear.clearTint();
+      }
+      ui.mark.setText(slot.equipped ? '✓' : slot.locked ? '?' : '');
+    });
+    const current = slots[cursor];
+    this.wardrobeName.setText(current ? current.name : '');
+    this.wardrobeDetail.setText(current ? current.detail : '');
+  }
+
+  hideWardrobe(): void {
+    this.wardrobe?.setVisible(false);
+    this.hintText.setVisible(true);
+  }
+
+  private buildWardrobe(count: number): void {
+    const { centerY, width, height, slotW, slotH, slotGap, slotY, iconScale } = WARDROBE;
+    const top = centerY - height / 2;
+    const left = W / 2 - width / 2;
+    const box = this.add
+      .rectangle(W / 2, centerY, width, height, hexToNumber(COLORS.nearBlack), 0.92)
+      .setStrokeStyle(2, hexToNumber(COLORS.clawdBody));
+    const title = this.add
+      .text(left + 24, top + 18, WARDROBE_TEXT.title.toUpperCase(), {
+        ...this.style(20, COLORS.ivory),
+        fontFamily: SERIF,
+      })
+      .setOrigin(0, 0.5);
+    const controls = this.add
+      .text(
+        left + width - 24,
+        top + 18,
+        isTouchDevice() ? WARDROBE_TEXT.controlsTouch : WARDROBE_TEXT.controls,
+        this.style(14, COLORS.cloudMedium),
+      )
+      .setOrigin(1, 0.5);
+    const rowWidth = count * slotW + (count - 1) * slotGap;
+    const children: Phaser.GameObjects.GameObject[] = [box, title, controls];
+    this.wardrobeSlots = Array.from({ length: count }, (_, index) => {
+      const x = W / 2 - rowWidth / 2 + slotW / 2 + index * (slotW + slotGap);
+      const frame = this.add.rectangle(x, slotY, slotW, slotH, hexToNumber(COLORS.ink), 0.6);
+      const feet = slotY + slotH / 2 - 10;
+      const clawd = this.add.image(x, feet, 'clawd', 0).setOrigin(0.5, 1).setScale(iconScale);
+      const gear = this.add.image(x, feet, 'clawd', 0).setOrigin(0.5, 1).setScale(iconScale);
+      const mark = this.add
+        .text(x + slotW / 2 - 6, slotY - slotH / 2 + 4, '', this.style(14, COLORS.clawdLight))
+        .setOrigin(1, 0);
+      children.push(frame, clawd, gear, mark);
+      return { frame, clawd, gear, mark };
+    });
+    this.wardrobeName = this.add
+      .text(W / 2, slotY + slotH / 2 + 22, '', this.style(20, COLORS.clawdLight))
+      .setOrigin(0.5);
+    this.wardrobeDetail = this.add
+      .text(W / 2, slotY + slotH / 2 + 48, '', this.style(16, COLORS.ivory))
+      .setOrigin(0.5);
+    children.push(this.wardrobeName, this.wardrobeDetail);
+    this.wardrobe = this.add.container(0, 0, children);
+  }
+
   setBoss(ratio: number | null, name = ''): void {
     const g = this.bossBar;
     g.clear();
@@ -337,8 +457,14 @@ export class UiScene extends Phaser.Scene {
   }
 
   /** Title screen: waits for a key or a tap, then calls onStart. */
-  showTitle(onStart: () => void, subtitle: string, prompt: string, controls: string): void {
-    const backdrop = createTitleBackdrop(this);
+  showTitle(
+    onStart: () => void,
+    subtitle: string,
+    prompt: string,
+    controls: string,
+    accessory: AccessoryId | null = null,
+  ): void {
+    const backdrop = createTitleBackdrop(this, accessory);
     const title = this.add
       .text(W / 2, 150, 'A G E N T', {
         ...this.style(104, COLORS.ivory),

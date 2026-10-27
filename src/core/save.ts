@@ -1,3 +1,5 @@
+import { type AccessoryId, isAccessoryId } from './accessories';
+
 /** Versioned save data persisted in localStorage behind a small adapter. */
 export const SAVE_VERSION = 1;
 export const SAVE_KEY = 'agent.save';
@@ -12,6 +14,8 @@ export interface SaveData {
   readonly flags: readonly string[];
   readonly finishedStory: boolean;
   readonly assistMode: boolean;
+  /** What Clawd wears; older saves without it load as bare Clawd. */
+  readonly accessory: AccessoryId | null;
 }
 
 export interface StorageAdapter {
@@ -29,6 +33,7 @@ export function createDefaultSave(startCheckpoint: string): SaveData {
     flags: [],
     finishedStory: false,
     assistMode: false,
+    accessory: null,
   };
 }
 
@@ -53,6 +58,7 @@ export function parseSave(raw: unknown): SaveData | null {
     flags: data.flags,
     finishedStory: data.finishedStory,
     assistMode: data.assistMode,
+    accessory: isAccessoryId(data.accessory) ? data.accessory : null,
   };
 }
 

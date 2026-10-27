@@ -26,6 +26,7 @@ import {
   TILDE_LINES,
   TILDE_POSTGAME,
   UI_TEXT,
+  WARDROBE_TEXT,
 } from '../content/script';
 import { CREDITS, ENDING, INTRO } from '../content/text';
 import {
@@ -41,6 +42,14 @@ import {
   type WorldEntity,
   zoneAtCol,
 } from '../content/world';
+import {
+  ACCESSORY_UNLOCK,
+  isUnlocked,
+  newlyUnlocked,
+  type Progress,
+  stepSlot,
+  WARDROBE_SLOTS,
+} from '../core/accessories';
 import { ActionBuffer } from '../core/actionBuffer';
 import { approach } from '../core/approach';
 import {
@@ -56,6 +65,7 @@ import { createDefaultSave, type SaveData, SaveStore } from '../core/save';
 import { TapHold } from '../core/tapHold';
 import { Vitals } from '../core/vitals';
 import { SoulSpark } from '../entities/SoulSpark';
+import { gearKey } from '../gfx/accessories';
 import { bakeParallax } from '../gfx/backgrounds';
 import { TILE_INDEX } from '../gfx/basicArt';
 import { CLAWD_FRAME } from '../gfx/clawdPoses';
@@ -66,7 +76,7 @@ import { BossFight } from '../systems/bossFight';
 import { burst, clawSlash, confetti, dust, flashWhite, impactStar } from '../systems/effects';
 import { HazardField } from '../systems/hazards';
 import { SCENES } from './sceneKeys';
-import type { UiScene } from './UiScene';
+import type { UiScene, WardrobeSlotView } from './UiScene';
 
 type Keys = Record<
   'left' | 'right' | 'up' | 'down' | 'a' | 'd' | 'w' | 's' | 'z' | 'space',
@@ -114,7 +124,16 @@ const ENEMY_KNOCKBACK = 120;
 const EXTRA_GID = TILESET_COLUMNS * ZONE_ORDER.length;
 const BRIDGE_TILE = EXTRA_GID + TILE_INDEX.bridge;
 const ERASED_TILE = EXTRA_GID + TILE_INDEX.erased;
-type Action = 'jump' | 'attack' | 'dash' | 'dance' | 'interact' | 'confirm' | 'spell';
+type Action =
+  | 'jump'
+  | 'attack'
+  | 'dash'
+  | 'dance'
+  | 'interact'
+  | 'confirm'
+  | 'spell'
+  | 'left'
+  | 'right';
 
 /** Keyboard codes for each discrete action. */
 const ACTION_CODES: Readonly<Record<string, Action>> = {
@@ -126,6 +145,10 @@ const ACTION_CODES: Readonly<Record<string, Action>> = {
   ShiftRight: 'dash',
   KeyK: 'dash',
   KeyB: 'dance',
+  ArrowLeft: 'left',
+  KeyA: 'left',
+  ArrowRight: 'right',
+  KeyD: 'right',
   ArrowUp: 'interact',
   KeyW: 'interact',
   Enter: 'confirm',
@@ -141,6 +164,9 @@ const POSE_FRAME: Readonly<Record<DanceBodyPose, number>> = {
   back: CLAWD_FRAME.back,
 };
 const GROK_BOT_HIT_HOP = 90;
+/** Accessory unlock toasts: how long each stays, and the wait after a rival falls. */
+const UNLOCK_TOAST_MS = 3600;
+const UNLOCK_TOAST_DELAY_MS = 4200;
 const ENEMY_DISSOLVE_MS = 220;
 const STEAM_INTERVAL_MS = 450;
 /** Story ending, then credits (with the legal line), then the open-world card. */
@@ -188,6 +214,12 @@ export class GameScene extends Phaser.Scene {
   private halo!: Phaser.GameObjects.Image;
   /** Visual-only Clawd; the physics sprite is invisible so squash/stretch never affects collisions. */
   private view!: Phaser.GameObjects.Sprite;
+  /** The accessory Clawd wears: an overlay that copies the view's frame, scale and angle. */
+  private gear!: Phaser.GameObjects.Sprite;
+  /** Open while choosing an accessory at a bench. */
+  private wardrobe: { cursor: number } | null = null;
+  /** Unlock messages that wait until no panel or card covers them. */
+  private pendingToasts: string[] = [];
   private wasGrounded = true;
   private squash = { x: 1, y: 1 };
   private trailMs = 0;
@@ -240,6 +272,7 @@ export class GameScene extends Phaser.Scene {
       UI_TEXT.subtitle,
       touch ? UI_TEXT.pressStartTouch : UI_TEXT.pressStart,
       touch ? '' : UI_TEXT.controls,
+      this.save.accessory,
     );
     this.refreshHud();
   }
@@ -512,6 +545,7 @@ export class GameScene extends Phaser.Scene {
   private spawnPlayer(x: number, y: number): void {
     this.player = this.physics.add.sprite(x, y - 10, 'clawd', 0).setVisible(false);
     this.view = this.add.sprite(x, y, 'clawd', 0).setOrigin(0.5, 1).setDepth(5);
+    this.gear = this.add.sprite(x, y, 'clawd', 0).setOrigin(0.5, 1).setDepth(5).setVisible(false);
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body
       .setSize(PLAYER.bodyWidth, PLAYER.bodyHeight)
@@ -631,7 +665,13 @@ export class GameScene extends Phaser.Scene {
         this.ui.hidePanel();
         this.physics.world.resume();
         audioDirector.playSfx('confirm');
+        this.flushToasts();
       }
+      this.actions.clear();
+      return;
+    }
+    if (this.wardrobe) {
+      this.updateWardrobe();
       this.actions.clear();
       return;
     }
@@ -641,6 +681,7 @@ export class GameScene extends Phaser.Scene {
     }
     const dt = Math.min(delta, 50);
     if (!this.dead) this.updatePlayer(dt);
+    this.syncGear();
     this.updateEnemies(dt);
     this.updateSparks(dt);
     if (this.fight) this.updateBoss(dt);
@@ -1112,7 +1153,9 @@ export class GameScene extends Phaser.Scene {
     audioDirector.playSfx('bossDefeat');
     const text = BOSS_TEXT[fight.id];
     this.ui.toast(text.defeat, 3000);
+    const before = this.progress();
     this.persist({ flags: [...this.save.flags, `boss:${fight.id}`] });
+    this.queueUnlocks(before);
     const beaten = BOSS_ORDER.filter((id) => this.save.flags.includes(`boss:${id}`)).length;
     const isFinal = beaten >= BOSS_ORDER.length;
     if (isFinal) audioDirector.playMusic('ending');
@@ -1121,11 +1164,15 @@ export class GameScene extends Phaser.Scene {
       this.fightArena = null;
       if (arena) this.setGates(arena, false);
       if (isFinal) {
-        this.ui.playCards(ENDING_SEQUENCE, () => this.openWorld());
+        this.ui.playCards(ENDING_SEQUENCE, () => {
+          this.openWorld();
+          this.time.delayedCall(UNLOCK_TOAST_DELAY_MS, () => this.flushToasts());
+        });
         return;
       }
       this.vitals.restore();
       this.ui.toast(UI_TEXT.rivalBeaten(text.name, beaten, BOSS_ORDER.length), 3000);
+      this.time.delayedCall(UNLOCK_TOAST_DELAY_MS, () => this.flushToasts());
       audioDirector.playMusic(this.zone);
     });
   }
@@ -1181,6 +1228,7 @@ export class GameScene extends Phaser.Scene {
     this.rest = null;
     this.cameras.main.shake(HURT.shakeMs, HURT.shakeIntensity);
     flashWhite(this, this.view);
+    if (this.gear.visible) flashWhite(this, this.gear);
     this.setSquash(1.3, 0.7);
     burst(this, this.player.x, this.player.y, COLORS.clawdBody, 8, 26);
     burst(this, this.player.x, this.player.y, COLORS.ink, 6, 20);
@@ -1219,7 +1267,9 @@ export class GameScene extends Phaser.Scene {
       ) {
         pickup.sprite.setVisible(false);
         const note = NOTE_TEXT[pickup.entity.id];
+        const before = this.progress();
         this.persist({ notes: [...this.save.notes, pickup.entity.id] });
+        this.queueUnlocks(before);
         this.physics.world.pause();
         audioDirector.playSfx('note');
         this.ui.showPanel(`${UI_TEXT.noteFound} · ${note?.title ?? ''}`, note?.body ?? '');
@@ -1233,6 +1283,7 @@ export class GameScene extends Phaser.Scene {
       const { kind, id } = prop.entity;
       if (kind === 'sign') hint = SIGN_TEXT[id] ?? '';
       if (kind === 'tilde') hint = this.tildeHint(dt);
+      if (kind === 'bench' && this.rest) hint = UI_TEXT.wardrobeHint;
       if (kind === 'bench' && !this.rest) {
         hint = UI_TEXT.rest;
         const sit = this.actions.consume('interact');
@@ -1460,6 +1511,10 @@ export class GameScene extends Phaser.Scene {
 
   private updateRest(dt: number, leaving: boolean): void {
     if (!this.rest) return;
+    if (this.actions.consume('interact')) {
+      this.openWardrobe();
+      return;
+    }
     (this.player.body as Phaser.Physics.Arcade.Body).setVelocityX(0);
     this.rest.refillMs += dt;
     if (this.rest.refillMs >= REST.refillIntervalMs) {
@@ -1481,6 +1536,97 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ---------------------------------------------------------------- helpers
+
+  // ---------------------------------------------------------------- accessories
+
+  /** Puts the chosen accessory on top of Clawd, matching his current frame exactly. */
+  private syncGear(): void {
+    const id = this.save.accessory;
+    const view = this.view;
+    if (!id || !view.visible) {
+      this.gear.setVisible(false);
+      return;
+    }
+    this.gear
+      .setTexture(gearKey(view.texture.key, id), view.frame.name)
+      .setPosition(view.x, view.y)
+      .setScale(view.scaleX, view.scaleY)
+      .setAngle(view.angle)
+      .setAlpha(view.alpha)
+      .setVisible(true);
+  }
+
+  private progress(): Progress {
+    return {
+      notes: this.save.notes.length,
+      totalNotes: this.totalNotes(),
+      rivalsBeaten: BOSS_ORDER.filter((id) => this.save.flags.includes(`boss:${id}`)).length,
+      totalRivals: BOSS_ORDER.length,
+    };
+  }
+
+  private queueUnlocks(before: Progress): void {
+    for (const id of newlyUnlocked(before, this.progress())) {
+      this.pendingToasts.push(UI_TEXT.accessoryUnlocked(WARDROBE_TEXT.items[id].name));
+    }
+  }
+
+  private flushToasts(): void {
+    this.pendingToasts.forEach((text, index) => {
+      this.time.delayedCall(index * UNLOCK_TOAST_MS, () => this.ui.toast(text, UNLOCK_TOAST_MS));
+    });
+    this.pendingToasts = [];
+  }
+
+  private openWardrobe(): void {
+    const cursor = Math.max(0, WARDROBE_SLOTS.indexOf(this.save.accessory));
+    this.wardrobe = { cursor };
+    this.physics.world.pause();
+    this.ui.setHint('');
+    this.ui.showWardrobe(this.wardrobeSlots(), cursor);
+    audioDirector.playSfx('select');
+  }
+
+  private updateWardrobe(): void {
+    if (!this.wardrobe) return;
+    const done = (['jump', 'attack', 'confirm', 'interact'] as const).some((action) =>
+      this.actions.peek(action),
+    );
+    if (done) {
+      this.wardrobe = null;
+      this.ui.hideWardrobe();
+      this.physics.world.resume();
+      audioDirector.playSfx('confirm');
+      return;
+    }
+    const step = (this.actions.peek('right') ? 1 : 0) - (this.actions.peek('left') ? 1 : 0);
+    if (step === 0) return;
+    const cursor = stepSlot(this.wardrobe.cursor, step);
+    this.wardrobe.cursor = cursor;
+    const slot = WARDROBE_SLOTS[cursor] ?? null;
+    if (slot === null || isUnlocked(slot, this.progress())) {
+      // Unlocked slots are worn right away, so the choice shows on Clawd behind the panel.
+      this.persist({ accessory: slot });
+      this.syncGear();
+      burst(this, this.view.x, this.view.y - 22, COLORS.ivory, 8, 14);
+    }
+    this.ui.showWardrobe(this.wardrobeSlots(), cursor);
+    audioDirector.playSfx('select');
+  }
+
+  private wardrobeSlots(): WardrobeSlotView[] {
+    const progress = this.progress();
+    return WARDROBE_SLOTS.map((id) => {
+      const equipped = this.save.accessory === id;
+      if (id === null) return { id, ...WARDROBE_TEXT.none, locked: false, equipped };
+      const locked = !isUnlocked(id, progress);
+      const item = WARDROBE_TEXT.items[id];
+      const detail = locked
+        ? `${WARDROBE_TEXT.locked} · ${WARDROBE_TEXT.unlock[ACCESSORY_UNLOCK[id]]}`
+        : item.detail;
+      return { id, name: locked ? '???' : item.name, detail, locked, equipped };
+    });
+  }
 
   private totalNotes(): number {
     return ENTITIES.filter((e) => e.kind === 'note').length;

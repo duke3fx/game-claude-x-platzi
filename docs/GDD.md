@@ -158,11 +158,22 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 | Completar | 360 px/s durante 190 ms (unos 68 px), i-frames durante el dash, cooldown 450 ms |
 | Curar | mantener 900 ms; cuesta 33 de Contexto y cura 1 Token. Cada golpe dado suma 11 de Contexto |
 | Chispa ✻ | toque < 180 ms; cuesta 33 de Contexto, 300 px/s, 2 de daño, atraviesa enemigos |
-| Banca | ↑ para sentarse: guarda el commit y recupera 1 Token cada 220 ms |
+| Banca | ↑ para sentarse: guarda el commit y recupera 1 Token cada 220 ms. Sentado, ↑ abre el armario |
 
 ### 4.3 Reglas
 - Al morir (**Compactación**) reapareces en el último Commit con todos los Tokens. No se pierde nada, porque es una demo corta.
 - **Modo asistido** en ajustes: recibes la mitad de daño.
+
+### 4.4 Accesorios
+Son cosméticos, al estilo de los amuletos de Hollow Knight: se eligen en una banca. Sentado, **↑** abre el **Armario**. Con **← →** se recorre y Clawd se pone al instante cada accesorio desbloqueado; **Z** cierra. La elección se guarda y también aparece en la portada.
+
+| Accesorio | Cómo se consigue |
+|---|---|
+| Audífonos, Lentes, Gorro | Desde el inicio |
+| Birrete | Reunir todas las notas de Luz |
+| Corona | Vencer a las tres IAs rivales ("la mejor IA") |
+
+Cada accesorio es una capa que copia el frame, la escala y el ángulo de Clawd, así que funciona al caminar, saltar, bailar y descansar. Los lentes siguen a los ojos.
 
 ## 5. Enemigos y rivales
 

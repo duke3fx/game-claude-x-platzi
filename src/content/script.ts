@@ -6,7 +6,7 @@ export const SIGN_TEXT: Readonly<Record<string, string>> = {
   pogo: 'En el aire: ↓ + X sobre algo para rebotar',
   heal: 'Toca V: lanza una chispa ✻ · Mantén V: cúrate (gasta Contexto)',
   dance: 'B para bailar. Luz dice que es obligatorio.',
-  rest: '↑ junto a la banca para descansar y recuperar Tokens',
+  rest: '↑ junto a la banca para descansar y recuperar Tokens. Sentado, ↑ abre el armario de accesorios',
   bridge: '// TODO: puente',
   erasedEdge: 'Aquí el mundo está borrado. Por ahora.',
   rival: 'Más allá: Luna, la primera IA rival. Descansa antes de entrar.',
@@ -92,6 +92,8 @@ export const UI_TEXT = {
     '← → moverse · Z saltar · X garra · ↓+X rebote · V toque: chispa / mantener: curar · Shift completar · ↑ descansar · B bailar',
   rest: '↑ Descansar',
   resting: 'Descansando… commit guardado ✓',
+  wardrobeHint: '↑ Accesorios',
+  accessoryUnlocked: (name: string) => `Nuevo accesorio: ${name} · póntelo en una banca`,
   noContext: 'No hay suficiente Contexto',
   dance: (index: number, total: number, name: string) => `Baile ${index}/${total} · ${name}`,
   compacting: 'Compactando conversación…',
@@ -133,4 +135,26 @@ export const TOUCH_TEXT = {
   dance: 'Bailar',
   fullscreen: 'Pantalla completa',
   rotate: 'Gira el teléfono para jugar',
+} as const;
+
+/** The bench wardrobe: one entry per accessory, plus bare Clawd. */
+export const WARDROBE_TEXT = {
+  title: 'Armario',
+  controls: '← → elegir  ·  [Z] listo',
+  controlsTouch: '◀ ▶ elegir  ·  Saltar: listo',
+  equipped: 'puesto',
+  locked: 'Bloqueado',
+  none: { name: 'Sin accesorio', detail: 'Clawd tal cual. El clásico nunca falla.' },
+  items: {
+    headphones: { name: 'Audífonos', detail: 'Para programar con lo-fi a las 02:14.' },
+    glasses: { name: 'Lentes', detail: 'Ahora sí lee la documentación completa.' },
+    beanie: { name: 'Gorro', detail: 'Abriga en las noches de la Biblioteca.' },
+    cap: { name: 'Birrete', detail: 'Nunca pares de aprender.' },
+    crown: { name: 'Corona', detail: 'Solo para la mejor IA del Borrador.' },
+  },
+  unlock: {
+    start: '',
+    allNotes: 'Reúne todas las notas de Luz.',
+    allRivals: 'Vence a las tres IAs rivales.',
+  },
 } as const;

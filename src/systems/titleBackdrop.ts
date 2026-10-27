@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, UI_ZOOM } from '../config/display';
 import { COLORS, hexToNumber, ZONE_PALETTES } from '../config/palette';
 import { REST } from '../config/tuning';
+import type { AccessoryId } from '../core/accessories';
+import { gearKey } from '../gfx/accessories';
 import { bakeParallax } from '../gfx/backgrounds';
 import { CLAWD_FRAME } from '../gfx/clawdPoses';
 import { NEIGHBOR, TILESET_KEY, tileIndex } from '../gfx/tiles';
@@ -29,7 +31,10 @@ export interface TitleBackdrop {
   fadeOut(onDone: () => void): void;
 }
 
-export function createTitleBackdrop(scene: Phaser.Scene): TitleBackdrop {
+export function createTitleBackdrop(
+  scene: Phaser.Scene,
+  accessory: AccessoryId | null = null,
+): TitleBackdrop {
   const palette = ZONE_PALETTES[ZONE];
   const objects: Phaser.GameObjects.GameObject[] = [];
   const timers: Phaser.Time.TimerEvent[] = [];
@@ -181,8 +186,20 @@ export function createTitleBackdrop(scene: Phaser.Scene): TitleBackdrop {
       .setOrigin(0.5, 1)
       .setScale(ART_SCALE),
   );
+  // The saved accessory rides along: same origin, frame and breathing as Clawd.
+  const wearing = accessory
+    ? [
+        clawd,
+        add(
+          scene.add
+            .sprite(clawd.x, clawd.y, gearKey('clawdLeft', accessory), CLAWD_FRAME.idle)
+            .setOrigin(0.5, 1)
+            .setScale(ART_SCALE),
+        ),
+      ]
+    : [clawd];
   scene.tweens.add({
-    targets: clawd,
+    targets: wearing,
     scaleY: ART_SCALE * 1.05,
     scaleX: ART_SCALE * 0.98,
     duration: 1600,
@@ -195,8 +212,10 @@ export function createTitleBackdrop(scene: Phaser.Scene): TitleBackdrop {
       delay: BLINK_EVERY_MS,
       loop: true,
       callback: () => {
-        clawd.setFrame(CLAWD_FRAME.closed);
-        scene.time.delayedCall(BLINK_MS, () => clawd.setFrame(CLAWD_FRAME.idle));
+        for (const sprite of wearing) sprite.setFrame(CLAWD_FRAME.closed);
+        scene.time.delayedCall(BLINK_MS, () => {
+          for (const sprite of wearing) sprite.setFrame(CLAWD_FRAME.idle);
+        });
       },
     }),
   );
