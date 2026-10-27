@@ -5,6 +5,21 @@ import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { UiScene } from './scenes/UiScene';
 
+/** Waits (briefly) for the display font so the first frames don't render with a fallback. */
+async function loadFonts(): Promise<void> {
+  const FONT_TIMEOUT_MS = 2500;
+  try {
+    await Promise.race([
+      document.fonts.load('44px "Cinzel"'),
+      new Promise((resolve) => setTimeout(resolve, FONT_TIMEOUT_MS)),
+    ]);
+  } catch {
+    // Offline or blocked: the serif fallback is fine.
+  }
+}
+
+await loadFonts();
+
 new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',

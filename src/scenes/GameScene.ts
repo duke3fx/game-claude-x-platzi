@@ -137,6 +137,8 @@ export class GameScene extends Phaser.Scene {
   private bossModeMs = 0;
   private bossFlashMs = 0;
   private hazards: Hazard[] = [];
+  private ambience: Partial<Record<ZoneId, Phaser.GameObjects.Particles.ParticleEmitter>> = {};
+  private halo!: Phaser.GameObjects.Image;
 
   constructor() {
     super(SCENES.game);
@@ -162,7 +164,7 @@ export class GameScene extends Phaser.Scene {
         this.ui.playCards(cards, () => {
           this.started = true;
           this.physics.world.resume();
-          this.ui.toast(UI_TEXT.zoneNames[this.zone]);
+          this.ui.zoneTitle(UI_TEXT.zoneNames[this.zone]);
         });
       },
       UI_TEXT.subtitle,
@@ -205,46 +207,148 @@ export class GameScene extends Phaser.Scene {
     this.drawBridgeOutline();
   }
 
+  /**
+   * Hollow-Knight-style depth: pale foggy far layers, darker mid layers, light shafts,
+   * and near-black foreground silhouettes that pass in front of the player.
+   */
   private drawBackdrop(width: number): void {
     const rng = new Phaser.Math.RandomDataGenerator(['agent']);
-    const zones: ZoneId[] = ['sandbox', 'library', 'margin'];
-    for (let x = 0; x < width; x += 28) {
-      const zone = zoneAtCol(Math.floor(x / TILE));
-      const palette = ZONE_PALETTES[zone];
-      const h = rng.between(60, 220);
-      this.add
-        .rectangle(
-          x * 0.6,
-          WORLD_ROWS * TILE - h / 2,
-          rng.between(14, 40),
-          h,
-          hexToNumber(palette.far),
-          0.9,
-        )
-        .setScrollFactor(0.6, 1)
-        .setDepth(-10);
-    }
-    for (const zone of zones) {
-      const count = 40;
-      for (let i = 0; i < count; i++) {
-        const col =
-          zone === 'sandbox'
-            ? rng.between(2, 55)
-            : zone === 'library'
-              ? rng.between(56, 105)
-              : rng.between(106, 158);
-        this.add
-          .rectangle(
-            col * TILE,
-            rng.between(20, 250),
-            2,
-            2,
-            hexToNumber(ZONE_PALETTES[zone].fog),
-            0.35,
-          )
-          .setDepth(-5);
+    const floorY = (WORLD_ROWS - 3) * TILE;
+    const layers = [
+      { factor: 0.2, depth: -40, color: 'far' as const, minH: 120, maxH: 260, step: 46 },
+      { factor: 0.45, depth: -30, color: 'mid' as const, minH: 70, maxH: 200, step: 38 },
+    ];
+    for (const layer of layers) {
+      const g = this.add.graphics().setScrollFactor(layer.factor, 1).setDepth(layer.depth);
+      for (let s = -GAME_WIDTH; s < width; s += layer.step) {
+        const zone = zoneAtCol(Math.floor((s + GAME_WIDTH / 2) / TILE));
+        const palette = ZONE_PALETTES[zone];
+        const x = s * layer.factor + rng.between(0, GAME_WIDTH);
+        const h = rng.between(layer.minH, layer.maxH);
+        const w = rng.between(12, 34);
+        g.fillStyle(hexToNumber(palette[layer.color]));
+        this.drawSilhouette(g, zone, x, floorY + TILE, w, h, rng);
       }
     }
+    // Fog bands and light shafts.
+    for (let s = 0; s < width; s += 160) {
+      const zone = zoneAtCol(Math.floor((s + GAME_WIDTH / 2) / TILE));
+      const palette = ZONE_PALETTES[zone];
+      this.add
+        .image(s * 0.5 + rng.between(0, 200), rng.between(150, 250), 'fog')
+        .setDisplaySize(rng.between(260, 420), rng.between(50, 90))
+        .setTint(hexToNumber(palette.fog))
+        .setAlpha(0.22)
+        .setScrollFactor(0.5, 1)
+        .setDepth(-20);
+      const shaftTint = zone === 'library' ? palette.accent : palette.fog;
+      this.add
+        .image(s * 0.7 + rng.between(0, 200), 0, 'shaft')
+        .setOrigin(0.5, 0)
+        .setDisplaySize(rng.between(50, 90), floorY)
+        .setAngle(rng.between(-12, 12))
+        .setTint(hexToNumber(shaftTint))
+        .setAlpha(zone === 'margin' ? 0.12 : 0.2)
+        .setBlendMode(Phaser.BlendModes.ADD)
+        .setScrollFactor(0.7, 1)
+        .setDepth(-15);
+    }
+    // Foreground: dark roots/stalactites from the ceiling and rubble along the bottom edge.
+    const fg = this.add.graphics().setScrollFactor(1.25, 1).setDepth(30);
+    for (let s = 0; s < width * 1.25; s += 70) {
+      const zone = zoneAtCol(Math.floor(s / 1.25 / TILE));
+      fg.fillStyle(hexToNumber(zone === 'margin' ? '#2A2928' : '#050505'), 0.92);
+      const x = s + rng.between(0, 40);
+      if (rng.frac() < 0.55) {
+        const len = rng.between(20, 70);
+        fg.fillTriangle(x - rng.between(6, 14), 0, x + rng.between(6, 14), 0, x, len);
+      }
+      if (rng.frac() < 0.5) {
+        const h = rng.between(10, 26);
+        fg.fillEllipse(x, WORLD_ROWS * TILE - 4, rng.between(40, 90), h * 2);
+      }
+    }
+    this.createAmbience();
+  }
+
+  private drawSilhouette(
+    g: Phaser.GameObjects.Graphics,
+    zone: ZoneId,
+    x: number,
+    baseY: number,
+    w: number,
+    h: number,
+    rng: Phaser.Math.RandomDataGenerator,
+  ): void {
+    const top = baseY - h;
+    if (zone === 'library') {
+      // Bookshelf towers with a few lit windows.
+      g.fillRect(x, top, w * 1.6, h);
+      return;
+    }
+    if (zone === 'margin') {
+      // Pencil strokes that fade mid-line.
+      g.fillRect(x, top, 3, h);
+      g.fillRect(x - w / 2, top + rng.between(0, 30), w, 3);
+      return;
+    }
+    // Sandbox: placeholder spires with pointed tops.
+    g.fillRect(x, top + w / 2, w, h);
+    g.fillTriangle(x, top + w / 2, x + w, top + w / 2, x + w / 2, top - w / 2);
+  }
+
+  private createAmbience(): void {
+    const view = { x: { min: 0, max: GAME_WIDTH }, y: { min: 0, max: GAME_HEIGHT } };
+    const configs: Record<ZoneId, Phaser.Types.GameObjects.Particles.ParticleEmitterConfig> = {
+      sandbox: {
+        ...view,
+        lifespan: 6000,
+        speedY: { min: -10, max: -3 },
+        speedX: { min: -6, max: 6 },
+        alpha: { start: 0.6, end: 0 },
+        tint: hexToNumber(COLORS.cactus),
+        frequency: 160,
+        blendMode: Phaser.BlendModes.ADD,
+      },
+      library: {
+        ...view,
+        lifespan: 5000,
+        speedY: { min: -14, max: -4 },
+        speedX: { min: -5, max: 5 },
+        alpha: { start: 0.9, end: 0 },
+        tint: hexToNumber(COLORS.peach),
+        frequency: 120,
+        blendMode: Phaser.BlendModes.ADD,
+      },
+      margin: {
+        ...view,
+        lifespan: 6000,
+        speedY: { min: 12, max: 26 },
+        speedX: { min: -8, max: 4 },
+        alpha: { start: 0.9, end: 0.2 },
+        tint: hexToNumber(COLORS.cloudDark),
+        frequency: 90,
+      },
+    };
+    for (const zone of ['sandbox', 'library', 'margin'] as const) {
+      const emitter = this.add.particles(0, 0, 'dot', configs[zone]).setDepth(25);
+      emitter.emitting = zone === this.zone;
+      this.ambience[zone] = emitter;
+    }
+    this.halo = this.add
+      .image(0, 0, 'halo')
+      .setTint(hexToNumber(COLORS.clawdLight))
+      .setAlpha(0.28)
+      .setScale(2.2)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(4);
+  }
+
+  private updateAmbience(): void {
+    const view = this.cameras.main.worldView;
+    for (const emitter of Object.values(this.ambience)) emitter.setPosition(view.x, view.y);
+    if (this.player)
+      this.halo.setPosition(this.player.x, this.player.y).setVisible(this.player.visible);
   }
 
   private drawSpikes(): void {
@@ -282,6 +386,12 @@ export class GameScene extends Phaser.Scene {
           break;
         case 'note':
           if (!this.save.notes.includes(entity.id)) {
+            this.add
+              .image(x, y - 10, 'halo')
+              .setTint(hexToNumber(COLORS.ivory))
+              .setAlpha(0.35)
+              .setBlendMode(Phaser.BlendModes.ADD)
+              .setDepth(1);
             const sprite = this.add.sprite(x, y - 10, 'note', 0).setDepth(2);
             this.tweens.add({ targets: sprite, y: y - 14, duration: 900, yoyo: true, repeat: -1 });
             this.pickups.push({ entity, sprite });
@@ -297,6 +407,13 @@ export class GameScene extends Phaser.Scene {
           this.props.push({ entity, sprite: this.add.sprite(x, y - 12, 'tilde', 0).setDepth(1) });
           break;
         case 'desk':
+          this.add
+            .image(x + 8, y - 26, 'halo')
+            .setTint(hexToNumber(COLORS.peach))
+            .setAlpha(0.5)
+            .setScale(2.5)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setDepth(0);
           this.props.push({ entity, sprite: this.add.sprite(x, y - 12, 'desk', 0).setDepth(1) });
           break;
         case 'boss':
@@ -413,6 +530,7 @@ export class GameScene extends Phaser.Scene {
       this.checkInteractions(dt);
     }
     this.updateZone();
+    this.updateAmbience();
     this.refreshHud();
   }
 
@@ -965,7 +1083,8 @@ export class GameScene extends Phaser.Scene {
     if (zone === this.zone) return;
     this.zone = zone;
     this.cameras.main.setBackgroundColor(ZONE_PALETTES[zone].background);
-    this.ui.toast(UI_TEXT.zoneNames[zone]);
+    for (const [id, emitter] of Object.entries(this.ambience)) emitter.emitting = id === zone;
+    this.ui.zoneTitle(UI_TEXT.zoneNames[zone]);
   }
 
   private refreshHud(): void {

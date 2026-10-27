@@ -160,21 +160,65 @@ function drawTiles(ctx: CanvasRenderingContext2D): void {
   const zones = [ZONE_PALETTES.sandbox, ZONE_PALETTES.library, ZONE_PALETTES.margin];
   zones.forEach((zone, i) => {
     const x = i * TILE;
+    // Near-black silhouette with a faint inner texture and a thin moss/ink lip on top.
     ctx.fillStyle = zone.solid;
     ctx.fillRect(x, 0, TILE, TILE);
     ctx.fillStyle = zone.mid;
-    for (let p = 0; p < 6; p++) ctx.fillRect(x + ((p * 7) % 14), (p * 5) % 14, 2, 2);
+    ctx.globalAlpha = 0.35;
+    for (let p = 0; p < 5; p++) ctx.fillRect(x + ((p * 7) % 14), 4 + ((p * 5) % 11), 2, 2);
+    ctx.globalAlpha = 1;
     ctx.fillStyle = zone.solidEdge;
-    ctx.fillRect(x, 0, TILE, 2);
+    ctx.globalAlpha = 0.55;
+    ctx.fillRect(x, 0, TILE, 1);
+    ctx.globalAlpha = 0.25;
+    ctx.fillRect(x + 2, 1, 4, 1);
+    ctx.fillRect(x + 9, 1, 5, 1);
+    ctx.globalAlpha = 1;
   });
   const bridgeX = TILE_INDEX.bridge * TILE;
   ctx.fillStyle = COLORS.clawdLight;
-  ctx.fillRect(bridgeX, 0, TILE, 4);
+  ctx.fillRect(bridgeX, 0, TILE, 3);
   ctx.fillStyle = COLORS.ivory;
-  ctx.fillRect(bridgeX, 4, TILE, 2);
+  ctx.fillRect(bridgeX, 3, TILE, 1);
   const erasedX = TILE_INDEX.erased * TILE;
   ctx.fillStyle = COLORS.erased;
   ctx.fillRect(erasedX, 0, TILE, TILE);
+}
+
+/** Soft radial light used for Clawd's halo, lamps and pickups (drawn with ADD blending). */
+function drawHalo(ctx: CanvasRenderingContext2D, size: number): void {
+  const r = size / 2;
+  const gradient = ctx.createRadialGradient(r, r, 0, r, r, r);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.9)');
+  gradient.addColorStop(0.35, 'rgba(255,255,255,0.35)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+}
+
+/** Vertical light shaft: bright at the top, fading downward. */
+function drawShaft(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.55)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.moveTo(width * 0.35, 0);
+  ctx.lineTo(width * 0.65, 0);
+  ctx.lineTo(width, height);
+  ctx.lineTo(0, height);
+  ctx.closePath();
+  ctx.fill();
+}
+
+/** Horizontal fog band: transparent at the edges, milky in the middle. */
+function drawFog(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, 'rgba(255,255,255,0)');
+  gradient.addColorStop(0.5, 'rgba(255,255,255,0.5)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
 }
 
 function drawPage(
@@ -202,6 +246,11 @@ function drawPage(
 }
 
 const PAGE_WIDTH = 64;
+const HALO_SIZE = 64;
+const SHAFT_WIDTH = 64;
+const SHAFT_HEIGHT = 200;
+const FOG_WIDTH = 32;
+const FOG_HEIGHT = 48;
 const PAGE_HEIGHT = 80;
 
 export function bakeBasicArt(textures: Phaser.Textures.TextureManager): void {
@@ -220,6 +269,11 @@ export function bakeBasicArt(textures: Phaser.Textures.TextureManager): void {
   drawCanvas(textures, 'pageOpen', PAGE_WIDTH, PAGE_HEIGHT, (ctx) =>
     drawPage(ctx, PAGE_WIDTH, PAGE_HEIGHT, true),
   );
+  drawCanvas(textures, 'halo', HALO_SIZE, HALO_SIZE, (ctx) => drawHalo(ctx, HALO_SIZE));
+  drawCanvas(textures, 'shaft', SHAFT_WIDTH, SHAFT_HEIGHT, (ctx) =>
+    drawShaft(ctx, SHAFT_WIDTH, SHAFT_HEIGHT),
+  );
+  drawCanvas(textures, 'fog', FOG_WIDTH, FOG_HEIGHT, (ctx) => drawFog(ctx, FOG_WIDTH, FOG_HEIGHT));
   drawCanvas(textures, 'dot', 2, 2, (ctx) => {
     ctx.fillStyle = COLORS.ivory;
     ctx.fillRect(0, 0, 2, 2);

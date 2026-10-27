@@ -6,6 +6,8 @@ import { SCENES } from './sceneKeys';
 const W = GAME_WIDTH * CANVAS_SCALE;
 const H = GAME_HEIGHT * CANVAS_SCALE;
 const FONT = 'ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace';
+const SERIF = '"Cinzel", Georgia, "Times New Roman", serif';
+const ZONE_TITLE_HOLD_MS = 2200;
 const CARD_MS = 3200;
 
 /** HUD and overlays, drawn by an unzoomed camera so text stays crisp. */
@@ -21,6 +23,8 @@ export class UiScene extends Phaser.Scene {
   private cardText!: Phaser.GameObjects.Text;
   private bossBar!: Phaser.GameObjects.Graphics;
   private toastTimer: Phaser.Time.TimerEvent | null = null;
+  private zoneCard!: Phaser.GameObjects.Container;
+  private zoneText!: Phaser.GameObjects.Text;
   panelOpen = false;
   cardsPlaying = false;
 
@@ -43,6 +47,14 @@ export class UiScene extends Phaser.Scene {
       .setOrigin(0.5, 0)
       .setAlpha(0);
 
+    this.zoneText = this.add
+      .text(W / 2, 150, '', { ...this.style(44, COLORS.ivory), fontFamily: SERIF })
+      .setOrigin(0.5);
+    const ornament = this.add.graphics();
+    this.drawOrnament(ornament, W / 2, 110, 260);
+    this.drawOrnament(ornament, W / 2, 192, 200);
+    this.zoneCard = this.add.container(0, 0, [ornament, this.zoneText]).setAlpha(0);
+
     const box = this.add
       .rectangle(W / 2, H / 2, W - 220, 260, hexToNumber(COLORS.nearBlack), 0.94)
       .setStrokeStyle(2, hexToNumber(COLORS.clawdBody));
@@ -59,10 +71,42 @@ export class UiScene extends Phaser.Scene {
 
     this.cardBg = this.add.rectangle(W / 2, H / 2, W, H, hexToNumber(COLORS.nearBlack)).setAlpha(0);
     this.cardText = this.add
-      .text(W / 2, H / 2, '', { ...this.style(28, COLORS.ivory), align: 'center', lineSpacing: 10 })
+      .text(W / 2, H / 2, '', {
+        ...this.style(28, COLORS.ivory),
+        fontFamily: SERIF,
+        align: 'center',
+        lineSpacing: 12,
+      })
       .setOrigin(0.5)
       .setWordWrapWidth(W - 240)
       .setAlpha(0);
+  }
+
+  /** Thin line with a diamond in the middle, like an engraved divider. */
+  private drawOrnament(g: Phaser.GameObjects.Graphics, x: number, y: number, width: number): void {
+    g.lineStyle(2, hexToNumber(COLORS.ivory), 0.85);
+    g.lineBetween(x - width / 2, y, x - 12, y);
+    g.lineBetween(x + 12, y, x + width / 2, y);
+    g.fillStyle(hexToNumber(COLORS.clawdLight));
+    g.fillTriangle(x - 8, y, x, y - 6, x + 8, y);
+    g.fillTriangle(x - 8, y, x, y + 6, x + 8, y);
+    g.fillStyle(hexToNumber(COLORS.ivory));
+    g.fillCircle(x - width / 2, y, 3);
+    g.fillCircle(x + width / 2, y, 3);
+  }
+
+  /** Area title card that fades in and out when entering a zone. */
+  zoneTitle(name: string): void {
+    this.zoneText.setText(name.toUpperCase().split('').join(' '));
+    this.tweens.killTweensOf(this.zoneCard);
+    this.zoneCard.setAlpha(0);
+    this.tweens.add({
+      targets: this.zoneCard,
+      alpha: 1,
+      duration: 900,
+      hold: ZONE_TITLE_HOLD_MS,
+      yoyo: true,
+    });
   }
 
   private style(size: number, color: string): Phaser.Types.GameObjects.Text.TextStyle {
@@ -72,14 +116,35 @@ export class UiScene extends Phaser.Scene {
   setHud(tokens: number, maxTokens: number, context: number, maxContext: number): void {
     const g = this.hud;
     g.clear();
-    g.lineStyle(2, hexToNumber(COLORS.clawdLight));
-    g.strokeCircle(48, 48, 22);
-    g.fillStyle(hexToNumber(COLORS.clawdLight), 0.85);
+    // Context vessel: a dark orb that fills with warm light.
+    const cx = 56;
+    const cy = 52;
+    g.fillStyle(hexToNumber(COLORS.nearBlack), 0.8);
+    g.fillCircle(cx, cy, 30);
     const ratio = Math.max(0, Math.min(1, context / maxContext));
-    if (ratio > 0) g.fillCircle(48, 48, 20 * ratio);
+    if (ratio > 0) {
+      g.fillStyle(hexToNumber(COLORS.clawdLight), 0.25);
+      g.fillCircle(cx, cy, 26);
+      g.fillStyle(hexToNumber(COLORS.clawdLight), 0.9);
+      g.fillCircle(cx, cy, 26 * ratio);
+    }
+    g.lineStyle(3, hexToNumber(COLORS.ivory));
+    g.strokeCircle(cx, cy, 30);
+    g.lineStyle(1, hexToNumber(COLORS.ivory), 0.5);
+    g.strokeCircle(cx, cy, 35);
+    g.lineBetween(cx + 35, cy, cx + 50, cy);
+    // Tokens: ivory blocks with ink outlines; spent ones are hollow.
     for (let i = 0; i < maxTokens; i++) {
-      g.fillStyle(hexToNumber(i < tokens ? COLORS.ivory : '#3D3D3A'));
-      g.fillRect(84 + i * 22, 34, 14, 26);
+      const x = 98 + i * 26;
+      const y = 34;
+      if (i < tokens) {
+        g.fillStyle(hexToNumber(COLORS.ivory));
+        g.fillRect(x, y, 18, 28);
+        g.fillStyle(hexToNumber(COLORS.cloudMedium));
+        g.fillRect(x, y + 22, 18, 6);
+      }
+      g.lineStyle(2, hexToNumber(i < tokens ? COLORS.ink : COLORS.cloudDark));
+      g.strokeRect(x, y, 18, 28);
     }
   }
 
@@ -159,8 +224,10 @@ export class UiScene extends Phaser.Scene {
   showTitle(onStart: () => void, subtitle: string, prompt: string, controls: string): void {
     const bg = this.add.rectangle(W / 2, H / 2, W, H, hexToNumber(COLORS.nearBlack));
     const title = this.add
-      .text(W / 2, H / 2 - 90, 'AGENT', this.style(96, COLORS.clawdBody))
+      .text(W / 2, H / 2 - 90, 'A G E N T', { ...this.style(96, COLORS.ivory), fontFamily: SERIF })
       .setOrigin(0.5);
+    const ornament = this.add.graphics();
+    this.drawOrnament(ornament, W / 2, H / 2 - 28, 360);
     const sub = this.add
       .text(W / 2, H / 2, subtitle, this.style(22, COLORS.cloudLight))
       .setOrigin(0.5);
@@ -175,7 +242,7 @@ export class UiScene extends Phaser.Scene {
     const start = (event: KeyboardEvent): void => {
       if (event.code !== 'KeyZ' && event.code !== 'Enter' && event.code !== 'Space') return;
       keyboard?.off('keydown', start);
-      for (const obj of [bg, title, sub, press, help]) obj.destroy();
+      for (const obj of [bg, title, ornament, sub, press, help]) obj.destroy();
       onStart();
     };
     keyboard?.on('keydown', start);
