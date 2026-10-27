@@ -139,6 +139,12 @@ export class GameScene extends Phaser.Scene {
   private hazards: Hazard[] = [];
   private ambience: Partial<Record<ZoneId, Phaser.GameObjects.Particles.ParticleEmitter>> = {};
   private halo!: Phaser.GameObjects.Image;
+  /** Visual-only Clawd; the physics sprite is invisible so squash/stretch never affects collisions. */
+  private view!: Phaser.GameObjects.Sprite;
+  private wasGrounded = true;
+  private squash = { x: 1, y: 1 };
+  private trailMs = 0;
+  private animMs = 0;
   private zoneDecor: Partial<
     Record<ZoneId, { objects: Phaser.GameObjects.Components.AlphaSingle[]; baseAlphas: number[] }>
   > = {};
@@ -379,8 +385,8 @@ export class GameScene extends Phaser.Scene {
   private updateAmbience(): void {
     const view = this.cameras.main.worldView;
     for (const emitter of Object.values(this.ambience)) emitter.setPosition(view.x, view.y);
-    if (this.player)
-      this.halo.setPosition(this.player.x, this.player.y).setVisible(this.player.visible);
+    if (this.view)
+      this.halo.setPosition(this.player.x, this.player.y).setVisible(this.view.visible);
   }
 
   private drawSpikes(): void {
@@ -449,7 +455,7 @@ export class GameScene extends Phaser.Scene {
           this.props.push({ entity, sprite: this.add.sprite(x, y - 12, 'desk', 0).setDepth(1) });
           break;
         case 'boss':
-          this.boss = this.add.image(x, y, 'page').setDepth(3);
+          this.boss = this.add.image(x, y, 'blankPage', 0).setDepth(3);
           this.tweens.add({ targets: this.boss, angle: 2, duration: 1600, yoyo: true, repeat: -1 });
           if (this.save.finishedStory) this.boss.setVisible(false);
           break;
@@ -463,7 +469,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private spawnPlayer(x: number, y: number): void {
-    this.player = this.physics.add.sprite(x, y - 10, 'clawd', 0).setDepth(5);
+    this.player = this.physics.add.sprite(x, y - 10, 'clawd', 0).setVisible(false);
+    this.view = this.add.sprite(x, y, 'clawd', 0).setOrigin(0.5, 1).setDepth(5);
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body
       .setSize(PLAYER.bodyWidth, PLAYER.bodyHeight)
@@ -598,6 +605,7 @@ export class GameScene extends Phaser.Scene {
       this.dashMs = DASH.durationMs;
       this.dashCooldownMs = DASH.cooldownMs + DASH.durationMs;
       body.setAllowGravity(false);
+      this.setSquash(1.45, 0.7);
       this.burst(this.player.x, this.player.y, COLORS.clawdLight, 6);
       return;
     }
@@ -610,6 +618,8 @@ export class GameScene extends Phaser.Scene {
     if (this.jump.consumeJump()) {
       body.setVelocityY(-PLAYER.jumpVelocity);
       this.jumpCut = false;
+      this.setSquash(0.75, 1.3);
+      this.dust(this.player.x, body.bottom, 4);
     }
     if (!jumpHeld && body.velocity.y < 0 && !this.jumpCut) {
       body.setVelocityY(body.velocity.y * PLAYER.jumpCutMultiplier);
@@ -636,14 +646,94 @@ export class GameScene extends Phaser.Scene {
   }
 
   private animatePlayer(grounded: boolean, moveX: number): void {
-    this.walkMs += this.game.loop.delta;
+    const dt = this.game.loop.delta;
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    this.walkMs += dt;
+    this.animMs += dt;
+
+    // Landing: squash and a puff of dust.
+    if (grounded && !this.wasGrounded) {
+      this.setSquash(1.3, 0.75);
+      this.dust(this.player.x, body.bottom, 6);
+    }
+    this.wasGrounded = grounded;
+
+    // Frames: blink, walk cycle, arms up for up-attacks and healing.
     const blink = Math.floor(this.walkMs / 100) % 34 === 0;
     let frame = blink ? 1 : 0;
-    if (grounded && moveX !== 0) frame = Math.floor(this.walkMs / 110) % 2 === 0 ? 2 : 3;
-    if (this.attackMs > 0 && this.input2().up) frame = 4;
-    this.player.setFrame(frame);
+    const running = grounded && moveX !== 0;
+    const step = Math.floor(this.walkMs / 110);
+    if (running) frame = step % 2 === 0 ? 2 : 3;
+    if ((this.attackMs > 0 && this.input2().up) || this.healHoldMs > 0) frame = 4;
+    if (running && step !== Math.floor((this.walkMs - dt) / 110) && step % 4 === 0) {
+      this.dust(this.player.x - moveX * 8, body.bottom, 2);
+    }
+
+    // Eyes look where Clawd is heading, like the official "look-left/right" poses.
+    this.view.setTexture(this.facing < 0 ? 'clawdLeft' : 'clawdRight', frame);
+
+    // Ease squash back to 1, plus a little stretch while rising or falling fast.
+    const ease = Math.min(1, dt / 90);
+    this.squash.x += (1 - this.squash.x) * ease;
+    this.squash.y += (1 - this.squash.y) * ease;
+    let sx = this.squash.x;
+    let sy = this.squash.y;
+    if (!grounded && this.dashMs <= 0) {
+      const stretch = Math.min(0.12, Math.abs(body.velocity.y) / 3000);
+      sx -= stretch;
+      sy += stretch;
+    }
+    // Idle breathing: a slow 1px bob, like the official Clawd animation.
+    const breathing =
+      grounded && moveX === 0 ? Math.round((Math.sin(this.animMs / 420) + 1) / 2) : 0;
+    const runBob = running && frame === 2 ? 1 : 0;
+    const lean = this.dashMs > 0 ? this.facing * 6 : running ? this.facing * 2 : 0;
+    this.view
+      .setPosition(this.player.x, body.bottom + 2 - breathing - runBob)
+      .setScale(sx, sy)
+      .setAngle(lean);
+
+    // Dash afterimages.
+    this.trailMs -= dt;
+    if (this.dashMs > 0 && this.trailMs <= 0) {
+      this.trailMs = 30;
+      const ghost = this.add
+        .sprite(this.view.x, this.view.y, this.view.texture.key, frame)
+        .setOrigin(0.5, 1)
+        .setScale(sx, sy)
+        .setTint(hexToNumber(COLORS.clawdLight))
+        .setAlpha(0.5)
+        .setDepth(4);
+      this.tweens.add({
+        targets: ghost,
+        alpha: 0,
+        duration: 220,
+        onComplete: () => ghost.destroy(),
+      });
+    }
+
     const flicker = this.invulnerableMs > 0 && Math.floor(this.invulnerableMs / 80) % 2 === 0;
-    this.player.setAlpha(flicker ? 0.35 : 1);
+    this.view.setAlpha(flicker ? 0.35 : 1);
+  }
+
+  private setSquash(x: number, y: number): void {
+    this.squash = { x, y };
+  }
+
+  /** Small puffs of dust at Clawd's feet. */
+  private dust(x: number, y: number, count: number): void {
+    const color = this.zone === 'margin' ? COLORS.cloudDark : COLORS.cloudMedium;
+    for (let i = 0; i < count; i++) {
+      const puff = this.add.rectangle(x, y - 1, 2, 2, hexToNumber(color), 0.8).setDepth(6);
+      this.tweens.add({
+        targets: puff,
+        x: x + (i - count / 2) * 4,
+        y: y - 4 - (i % 3) * 2,
+        alpha: 0,
+        duration: 320,
+        onComplete: () => puff.destroy(),
+      });
+    }
   }
 
   private attack(up: boolean, down: boolean): void {
@@ -674,6 +764,7 @@ export class GameScene extends Phaser.Scene {
       );
 
     this.drawSlash(up ? -Math.PI / 2 : down ? Math.PI / 2 : this.facing > 0 ? 0 : Math.PI);
+    this.setSquash(up || down ? 0.9 : 1.2, up || down ? 1.15 : 0.9);
 
     let hitSomething = false;
     for (const enemy of this.enemies) {
@@ -790,13 +881,13 @@ export class GameScene extends Phaser.Scene {
     if (body.blocked.down && !below) enemy.dir *= -1;
     body.setVelocityX(enemy.dir * GARABATO_SPEED);
     enemy.sprite.setFlipX(enemy.dir > 0);
-    enemy.sprite.setFrame(Math.floor(enemy.t / 180) % 2);
+    enemy.sprite.setFrame(enemy.flashMs > 0 ? 2 : Math.floor(enemy.t / 180) % 2);
   }
 
   private updateTodo(enemy: Enemy, dt: number): void {
     const body = enemy.sprite.body as Phaser.Physics.Arcade.Body;
     enemy.modeMs += dt;
-    enemy.sprite.setFrame(Math.floor(enemy.t / 120) % 2);
+    enemy.sprite.setFrame(enemy.mode === 'dive' ? 2 : Math.floor(enemy.t / 90) % 2);
     const dx = this.player.x - enemy.sprite.x;
     const dy = this.player.y - enemy.sprite.y;
     const dist = Math.hypot(dx, dy);
@@ -864,7 +955,7 @@ export class GameScene extends Phaser.Scene {
     for (const hazard of this.hazards) hazard.visual.destroy();
     this.hazards = [];
     this.ui.setBoss(null);
-    this.boss.setTexture('page');
+    this.boss.setFrame(0);
   }
 
   private get bossPhase2(): boolean {
@@ -891,11 +982,11 @@ export class GameScene extends Phaser.Scene {
       if (this.bossMode === 'select') this.spawnSelection(speed);
       if (this.bossMode === 'sweep') this.spawnSweep();
       if (this.bossMode === 'doubts') this.spawnDoubts();
-      this.boss.setTexture('pageOpen');
+      this.boss.setFrame(1);
     } else if (this.bossMode !== 'idle' && this.bossModeMs >= 1600 * speed) {
       this.bossMode = 'idle';
       this.bossModeMs = 0;
-      this.boss.setTexture('page');
+      this.boss.setFrame(0);
     }
   }
 
@@ -1055,6 +1146,8 @@ export class GameScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(Math.sign(this.player.x - fromX || 1) * HURT.knockbackX, -HURT.knockbackY);
     this.cameras.main.shake(HURT.shakeMs, HURT.shakeIntensity);
+    this.flashWhite(this.view);
+    this.setSquash(1.3, 0.7);
     this.hitStop();
     if (this.vitals.isDead) this.die();
   }
@@ -1062,12 +1155,13 @@ export class GameScene extends Phaser.Scene {
   private die(): void {
     this.dead = true;
     this.ui.toast(UI_TEXT.compacting, RESPAWN_DELAY_MS);
-    this.player.setVisible(false);
+    this.view.setVisible(false);
     this.burst(this.player.x, this.player.y, COLORS.clawdBody, 16);
     this.time.delayedCall(RESPAWN_DELAY_MS, () => {
       if (this.bossActive) this.resetBoss();
       const checkpoint = this.checkpointPosition(this.save.checkpointId);
-      this.player.setPosition(checkpoint.x, checkpoint.y).setVisible(true);
+      this.player.setPosition(checkpoint.x, checkpoint.y);
+      this.view.setVisible(true);
       (this.player.body as Phaser.Physics.Arcade.Body).setVelocity(0, 0);
       this.vitals.restore();
       this.invulnerableMs = HURT.invulnerableMs;

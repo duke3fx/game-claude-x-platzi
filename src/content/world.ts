@@ -50,8 +50,9 @@ function buildTerrain(): string[] {
   fill(grid, 7, 7, 1, 16, 'E');
   // El Arenero: a step, a block and a spike pit.
   fill(grid, 16, 19, 15, 16, '#');
-  fill(grid, 28, 29, 14, 16, '#');
+  fill(grid, 28, 29, 15, 16, '#');
   fill(grid, 33, 38, 13, 13, '#');
+  fill(grid, 31, 32, 14, 14, '#');
   fill(grid, 44, 46, 17, 18, '.');
   fill(grid, 44, 46, 18, 18, '^');
   // La Biblioteca Nocturna: a climb of shelves.
@@ -60,7 +61,7 @@ function buildTerrain(): string[] {
   fill(grid, 67, 71, 11, 11, '#');
   fill(grid, 74, 78, 8, 8, '#');
   fill(grid, 82, 86, 12, 12, '#');
-  fill(grid, 90, 91, 14, 16, '#');
+  fill(grid, 90, 91, 15, 16, '#');
   // The unfinished bridge over a spike pit: only COMPLETAR can cross it.
   fill(grid, 106, 113, 17, 19, '.');
   fill(grid, 106, 113, 19, 19, '^');

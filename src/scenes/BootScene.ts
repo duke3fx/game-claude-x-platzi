@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { bakeBasicArt } from '../gfx/basicArt';
+import { withEyesShifted } from '../gfx/clawdLook';
 import { bakeSprite } from '../gfx/pixelArt';
 import { CLAWD } from '../gfx/sprites';
 import { SCENES } from './sceneKeys';
@@ -12,6 +13,8 @@ export class BootScene extends Phaser.Scene {
 
   create(): void {
     bakeSprite(this.textures, 'clawd', CLAWD);
+    bakeSprite(this.textures, 'clawdLeft', withEyesShifted(CLAWD, -1));
+    bakeSprite(this.textures, 'clawdRight', withEyesShifted(CLAWD, 1));
     bakeBasicArt(this.textures);
     this.scene.start(SCENES.game);
   }

@@ -107,3 +107,12 @@ describe('parseAsciiMap', () => {
     expect(map.markers).toEqual([{ char: 'P', col: 1, row: 0 }]);
   });
 });
+
+describe('withEyesShifted', () => {
+  it('moves eye pixels inside the body', async () => {
+    const { withEyesShifted } = await import('../src/gfx/clawdLook');
+    const sprite = { palette: { '#': '#000', o: '#fff' }, frames: [['#o##o#']] };
+    expect(withEyesShifted(sprite, 1).frames[0]).toEqual(['##o##o']);
+    expect(withEyesShifted(sprite, -1).frames[0]).toEqual(['o##o##']);
+  });
+});

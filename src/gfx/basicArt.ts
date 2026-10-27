@@ -2,144 +2,23 @@ import type Phaser from 'phaser';
 import { TILE } from '../config/display';
 import { COLORS, ZONE_PALETTES } from '../config/palette';
 import { bakeSprite, type PixelSprite } from './pixelArt';
+import {
+  BLANK_PAGE,
+  COMMIT as COMMIT_ART,
+  ERASER as ERASER_ART,
+  GARABATO as GARABATO_ART,
+  LUZ_DESK,
+  NOTE as NOTE_ART,
+  TILDE as TILDE_ART,
+  TODO_BUG as TODO_ART,
+} from './sprites';
 
 /** Minimal code-drawn art used by the first playable build. */
 export const TILE_INDEX = { sandbox: 0, library: 1, margin: 2, bridge: 3, erased: 4 } as const;
 
-const GARABATO: PixelSprite = {
-  palette: { k: COLORS.cloudLight, m: COLORS.danger },
-  frames: [
-    [
-      '..kkkkkk..',
-      '.k.k..k.k.',
-      'kk.kkk.kkk',
-      'k.m.kk.m.k',
-      'kkk.kk.kk.',
-      '.k.kkkk.k.',
-      '..k....k..',
-      '.k......k.',
-    ],
-    [
-      '..kkkkkk..',
-      '.k.k..k.k.',
-      'kk.kkk.kkk',
-      'k.m.kk.m.k',
-      'kkk.kk.kk.',
-      '.k.kkkk.k.',
-      '...k..k...',
-      '..k....k..',
-    ],
-  ],
-};
-
-const TODO_BUG: PixelSprite = {
-  palette: { y: COLORS.oat, s: COLORS.cloudMedium, m: COLORS.danger },
-  frames: [
-    ['s......s', '.s....s.', '.yyyyyy.', 'yymyymyy', 'yyyyyyyy', '.yyyyyy.', '..y..y..'],
-    ['........', 's......s', '.yyyyyy.', 'yymyymyy', 'yyyyyyyy', '.yyyyyy.', '.y....y.'],
-  ],
-};
-
-const NOTE: PixelSprite = {
-  palette: { p: COLORS.ivory, l: COLORS.cloudDark, g: COLORS.clawdLight },
-  frames: [
-    ['pppp..', 'pllpp.', 'pppppp', 'pllllp', 'pppppp', 'pllllp', 'pppppp'],
-    ['ppppg.', 'pllppg', 'pppppp', 'pllllp', 'pppppp', 'pllllp', 'pppppp'],
-  ],
-};
-
-const COMMIT: PixelSprite = {
-  palette: { f: COLORS.cloudDark, s: COLORS.ink, o: COLORS.ivory, g: COLORS.olive },
-  frames: [
-    [
-      'ffffffffff',
-      'fssssssssf',
-      'fssssssssf',
-      'fssssssssf',
-      'fssssssssf',
-      'ffffffffff',
-      '....ff....',
-      '....ff....',
-      '..ffffff..',
-    ],
-    [
-      'ffffffffff',
-      'fooooooogf',
-      'fooooogoof',
-      'fogooogoof',
-      'foogogooof',
-      'ffffffffff',
-      '....ff....',
-      '....ff....',
-      '..ffffff..',
-    ],
-  ],
-};
-
-const TILDE: PixelSprite = {
-  palette: { i: COLORS.ivory, d: COLORS.cloudMedium, o: COLORS.ink },
-  frames: [
-    [
-      '..i.i.i...',
-      '.i.i.i.i..',
-      '..........',
-      '..iiiiii..',
-      '.i......i.',
-      '.i.o..o.i.',
-      '.i......i.',
-      '..i....i..',
-      '...d..d...',
-      '..d....d..',
-      '..i....i..',
-      '..i.d..i..',
-    ],
-    [
-      '...i.i.i..',
-      '..i.i.i.i.',
-      '..........',
-      '..iiiiii..',
-      '.i......i.',
-      '.i.o..o.i.',
-      '.i......i.',
-      '..i....i..',
-      '...d..d...',
-      '..d....d..',
-      '..i....i..',
-      '..i..d.i..',
-    ],
-  ],
-};
-
-const DESK: PixelSprite = {
-  palette: { w: '#5E5D59', l: COLORS.peach, s: COLORS.sky, k: COLORS.ink, b: '#3D3D3A' },
-  frames: [
-    [
-      '..............ll......',
-      '.............llll.....',
-      '..............k.......',
-      '...kkkkkkk....k.......',
-      '...ksssssk....k.......',
-      '...ksssssk....k.......',
-      '...kkkkkkk...kkk......',
-      '..kkkkkkkkk...........',
-      'wwwwwwwwwwwwwwwwwwwwww',
-      '.b..................b.',
-      '.b..................b.',
-      '.b..................b.',
-    ],
-  ],
-};
-
 const SIGN: PixelSprite = {
   palette: { w: '#87867F', p: COLORS.oat },
   frames: [['pppppppp', 'pwwwwwwp', 'pppppppp', '...ww...', '...ww...', '...ww...']],
-};
-
-const ERASER: PixelSprite = {
-  palette: { p: COLORS.fig, w: COLORS.ivory, k: COLORS.ink },
-  frames: [
-    ['kkkkkkkkkkkkkk', 'kppppppwwwwwwk', 'kppppppwwwwwwk', 'kppppppwwwwwwk', 'kkkkkkkkkkkkkk'],
-  ],
 };
 
 function drawCanvas(
@@ -254,14 +133,15 @@ const FOG_HEIGHT = 48;
 const PAGE_HEIGHT = 80;
 
 export function bakeBasicArt(textures: Phaser.Textures.TextureManager): void {
-  bakeSprite(textures, 'garabato', GARABATO);
-  bakeSprite(textures, 'todo', TODO_BUG);
-  bakeSprite(textures, 'note', NOTE);
-  bakeSprite(textures, 'commit', COMMIT);
-  bakeSprite(textures, 'tilde', TILDE);
-  bakeSprite(textures, 'desk', DESK);
+  bakeSprite(textures, 'garabato', GARABATO_ART);
+  bakeSprite(textures, 'todo', TODO_ART);
+  bakeSprite(textures, 'note', NOTE_ART);
+  bakeSprite(textures, 'commit', COMMIT_ART);
+  bakeSprite(textures, 'tilde', TILDE_ART);
+  bakeSprite(textures, 'desk', LUZ_DESK);
   bakeSprite(textures, 'sign', SIGN);
-  bakeSprite(textures, 'eraser', ERASER);
+  bakeSprite(textures, 'eraser', ERASER_ART);
+  bakeSprite(textures, 'blankPage', BLANK_PAGE);
   drawCanvas(textures, 'tiles', TILE * 5, TILE, drawTiles);
   drawCanvas(textures, 'page', PAGE_WIDTH, PAGE_HEIGHT, (ctx) =>
     drawPage(ctx, PAGE_WIDTH, PAGE_HEIGHT, false),
