@@ -17,6 +17,7 @@ export type EntityKind =
   | 'todo'
   | 'note'
   | 'commit'
+  | 'bench'
   | 'desk'
   | 'boss';
 
@@ -79,6 +80,7 @@ export const ENTITIES: readonly WorldEntity[] = [
   { kind: 'player', col: 10, row: 16, id: 'start' },
   { kind: 'sign', col: 12, row: 16, id: 'walk' },
   { kind: 'sign', col: 15, row: 16, id: 'jump' },
+  { kind: 'sign', col: 20, row: 16, id: 'dance' },
   { kind: 'tilde', col: 22, row: 16, id: 'tilde' },
   { kind: 'sign', col: 25, row: 16, id: 'attack' },
   { kind: 'garabato', col: 31, row: 16, id: 'g1' },
@@ -86,6 +88,8 @@ export const ENTITIES: readonly WorldEntity[] = [
   { kind: 'garabato', col: 40, row: 16, id: 'g2' },
   { kind: 'sign', col: 42, row: 16, id: 'pogo' },
   { kind: 'commit', col: 51, row: 16, id: 'c1' },
+  { kind: 'bench', col: 53, row: 16, id: 'b1' },
+  { kind: 'sign', col: 49, row: 16, id: 'rest' },
   { kind: 'sign', col: 58, row: 16, id: 'heal' },
   { kind: 'garabato', col: 66, row: 16, id: 'g3' },
   { kind: 'todo', col: 70, row: 8, id: 't1' },
@@ -96,14 +100,19 @@ export const ENTITIES: readonly WorldEntity[] = [
   { kind: 'note', col: 94, row: 16, id: 'claudeMdLuz' },
   { kind: 'desk', col: 97, row: 16, id: 'desk' },
   { kind: 'commit', col: 101, row: 16, id: 'c2' },
-  { kind: 'sign', col: 104, row: 16, id: 'bridge' },
+  { kind: 'bench', col: 103, row: 16, id: 'b2' },
+  { kind: 'sign', col: 105, row: 16, id: 'bridge' },
   { kind: 'note', col: 118, row: 13, id: 'pendingQuestion' },
   { kind: 'commit', col: 123, row: 16, id: 'c3' },
+  { kind: 'bench', col: 121, row: 16, id: 'b3' },
   { kind: 'boss', col: 146, row: 9, id: 'blankPage' },
   { kind: 'note', col: 149, row: 12, id: 'sessionNotes' },
   { kind: 'note', col: 4, row: 16, id: 'lastLine' },
   { kind: 'sign', col: 9, row: 16, id: 'erasedEdge' },
 ];
+
+/** Each rest bench belongs to the commit terminal beside it. */
+export const BENCH_COMMIT: Readonly<Record<string, string>> = { b1: 'c1', b2: 'c2', b3: 'c3' };
 
 /** Column where the boss arena gate closes behind the player. */
 export const ARENA_GATE_COL = 126;

@@ -4,7 +4,9 @@ export const SIGN_TEXT: Readonly<Record<string, string>> = {
   jump: 'Z o Espacio para saltar. ¡Mantén para saltar más!',
   attack: 'X para usar la garra. Mira ↑ o ↓ para golpear arriba/abajo',
   pogo: 'En el aire: ↓ + X sobre algo para rebotar',
-  heal: 'Mantén V para curarte (gasta Contexto)',
+  heal: 'Toca V: lanza una chispa ✻ · Mantén V: cúrate (gasta Contexto)',
+  dance: 'B para bailar. Luz dice que es obligatorio.',
+  rest: '↑ junto a la banca para descansar y recuperar Tokens',
   bridge: '// TODO: puente',
   erasedEdge: 'Aquí el mundo está borrado. Por ahora.',
 };
@@ -71,7 +73,12 @@ export const UI_TEXT = {
   title: 'AGENT',
   subtitle: 'un juego de fans protagonizado por Clawd',
   pressStart: 'Pulsa Z o Enter para empezar',
-  controls: '← → moverse · Z saltar · X garra · ↓+X rebote · V curar · C completar',
+  controls:
+    '← → moverse · Z saltar · X garra · ↓+X rebote · V toque: chispa / mantener: curar · C completar · ↑ descansar · B bailar',
+  rest: '↑ Descansar',
+  resting: 'Descansando… commit guardado ✓',
+  noContext: 'No hay suficiente Contexto',
+  dance: (index: number, total: number, name: string) => `Baile ${index}/${total} · ${name}`,
   compacting: 'Compactando conversación…',
   saved: 'Commit guardado ✓',
   noteFound: 'Nota encontrada',
@@ -79,3 +86,22 @@ export const UI_TEXT = {
   zoneNames: { sandbox: 'El Arenero', library: 'La Biblioteca Nocturna', margin: 'El Margen' },
   notes: (found: number, total: number) => `Notas ${found}/${total}`,
 } as const;
+
+export const DANCE_NAMES = {
+  hooray: '¡Hurra!',
+  wave: 'Saludo',
+  turntable: 'Giro de 360°',
+  thinking: 'Pensando…',
+} as const;
+
+/** Glyphs of the Claude Code spinner, shown over Clawd's head while it "thinks". */
+export const SPINNER_GLYPHS: readonly string[] = ['·', '✢', '✳', '✶', '✻', '✽'];
+
+/** A few of Claude Code's whimsical spinner verbs. */
+export const THINKING_VERBS: readonly string[] = [
+  'Clauding…',
+  'Pondering…',
+  'Ruminating…',
+  'Lollygagging…',
+  'Canoodling…',
+];

@@ -16,6 +16,25 @@ import {
 /** Minimal code-drawn art used by the first playable build. */
 export const TILE_INDEX = { sandbox: 0, library: 1, margin: 2, bridge: 3, erased: 4 } as const;
 
+/** Rest bench (Hollow-Knight-style save/heal spot) with Luz's coffee mug. */
+const BENCH: PixelSprite = {
+  palette: { k: '#262624', w: '#87867F', h: '#D1CFC5', m: COLORS.clawdShade, c: COLORS.ivory },
+  frames: [
+    [
+      '..kkkkkkkkkkkkkk......',
+      '..khhhhhhhhhhhhk......',
+      '..kwwwwwwwwwwwwk......',
+      '..kkkkkkkkkkkkkk......',
+      '...k..........k...mm..',
+      'kkkkkkkkkkkkkkkkkk.mmm',
+      'khhhhhhhhhhhhhhhhk.mm.',
+      'kkkkkkkkkkkkkkkkkk.mm.',
+      '.kk.kk.......kk.kk....',
+      '.kk.kk.......kk.kk....',
+    ],
+  ],
+};
+
 const SIGN: PixelSprite = {
   palette: { w: '#87867F', p: COLORS.oat },
   frames: [['pppppppp', 'pwwwwwwp', 'pppppppp', '...ww...', '...ww...', '...ww...']],
@@ -140,6 +159,7 @@ export function bakeBasicArt(textures: Phaser.Textures.TextureManager): void {
   bakeSprite(textures, 'tilde', TILDE_ART);
   bakeSprite(textures, 'desk', LUZ_DESK);
   bakeSprite(textures, 'sign', SIGN);
+  bakeSprite(textures, 'bench', BENCH);
   bakeSprite(textures, 'eraser', ERASER_ART);
   bakeSprite(textures, 'blankPage', BLANK_PAGE);
   drawCanvas(textures, 'tilesBasic', TILE * 5, TILE, drawTiles);

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audioDirector } from '../audio/AudioDirector';
 import { GAME_HEIGHT, GAME_WIDTH, UI_ZOOM } from '../config/display';
 import { COLORS, hexToNumber } from '../config/palette';
 import { SCENES } from './sceneKeys';
@@ -9,6 +10,18 @@ const H = GAME_HEIGHT * UI_ZOOM;
 const FONT = 'ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace';
 const SERIF = '"Cinzel", Georgia, "Times New Roman", serif';
 const ZONE_TITLE_HOLD_MS = 2200;
+const TOKEN_FX_MS = 450;
+const TOKEN_X = 98;
+const TOKEN_Y = 34;
+const TOKEN_STEP = 26;
+const TOKEN_W = 18;
+const TOKEN_H = 28;
+
+interface TokenFx {
+  readonly index: number;
+  readonly kind: 'lost' | 'gained';
+  readonly at: number;
+}
 const CARD_MS = 3200;
 
 /** HUD and overlays, drawn by an unzoomed camera so text stays crisp. */
@@ -26,6 +39,8 @@ export class UiScene extends Phaser.Scene {
   private toastTimer: Phaser.Time.TimerEvent | null = null;
   private zoneCard!: Phaser.GameObjects.Container;
   private zoneText!: Phaser.GameObjects.Text;
+  private prevTokens = -1;
+  private tokenFx: TokenFx[] = [];
   panelOpen = false;
   cardsPlaying = false;
 
@@ -115,10 +130,50 @@ export class UiScene extends Phaser.Scene {
     return { fontFamily: FONT, fontSize: `${size}px`, color, resolution: UI_ZOOM };
   }
 
-  setHud(tokens: number, maxTokens: number, context: number, maxContext: number): void {
+  setHud(
+    tokens: number,
+    maxTokens: number,
+    context: number,
+    maxContext: number,
+    readyCost: number,
+  ): void {
+    const now = this.time.now;
+    this.trackTokenChanges(tokens, now);
     const g = this.hud;
     g.clear();
-    // Context vessel: a dark orb that fills with warm light.
+    this.drawVessel(g, context, maxContext, context >= readyCost, now);
+    for (let i = 0; i < maxTokens; i++) {
+      const x = TOKEN_X + i * TOKEN_STEP;
+      if (i < tokens) {
+        g.fillStyle(hexToNumber(COLORS.ivory));
+        g.fillRect(x, TOKEN_Y, TOKEN_W, TOKEN_H);
+        g.fillStyle(hexToNumber(COLORS.cloudMedium));
+        g.fillRect(x, TOKEN_Y + 22, TOKEN_W, 6);
+      }
+      g.lineStyle(2, hexToNumber(i < tokens ? COLORS.ink : COLORS.cloudDark));
+      g.strokeRect(x, TOKEN_Y, TOKEN_W, TOKEN_H);
+    }
+    this.drawTokenFx(g, now);
+  }
+
+  private trackTokenChanges(tokens: number, now: number): void {
+    if (this.prevTokens >= 0 && tokens !== this.prevTokens) {
+      const kind = tokens < this.prevTokens ? 'lost' : 'gained';
+      const [from, to] = kind === 'lost' ? [tokens, this.prevTokens] : [this.prevTokens, tokens];
+      for (let i = from; i < to; i++) this.tokenFx.push({ index: i, kind, at: now });
+    }
+    this.prevTokens = tokens;
+    this.tokenFx = this.tokenFx.filter((fx) => now - fx.at < TOKEN_FX_MS);
+  }
+
+  /** Context vessel: a dark orb that fills with warm light and pulses when a spark is ready. */
+  private drawVessel(
+    g: Phaser.GameObjects.Graphics,
+    context: number,
+    maxContext: number,
+    ready: boolean,
+    now: number,
+  ): void {
     const cx = 56;
     const cy = 52;
     g.fillStyle(hexToNumber(COLORS.nearBlack), 0.8);
@@ -130,23 +185,37 @@ export class UiScene extends Phaser.Scene {
       g.fillStyle(hexToNumber(COLORS.clawdLight), 0.9);
       g.fillCircle(cx, cy, 26 * ratio);
     }
+    if (ready) {
+      const pulse = (Math.sin(now / 180) + 1) / 2;
+      g.lineStyle(3, hexToNumber(COLORS.clawdLight), 0.3 + pulse * 0.5);
+      g.strokeCircle(cx, cy, 36 + pulse * 3);
+    }
     g.lineStyle(3, hexToNumber(COLORS.ivory));
     g.strokeCircle(cx, cy, 30);
     g.lineStyle(1, hexToNumber(COLORS.ivory), 0.5);
     g.strokeCircle(cx, cy, 35);
     g.lineBetween(cx + 35, cy, cx + 50, cy);
-    // Tokens: ivory blocks with ink outlines; spent ones are hollow.
-    for (let i = 0; i < maxTokens; i++) {
-      const x = 98 + i * 26;
-      const y = 34;
-      if (i < tokens) {
-        g.fillStyle(hexToNumber(COLORS.ivory));
-        g.fillRect(x, y, 18, 28);
-        g.fillStyle(hexToNumber(COLORS.cloudMedium));
-        g.fillRect(x, y + 22, 18, 6);
+  }
+
+  /** Lost Tokens shatter into four shards; regained ones flash with a warm ring. */
+  private drawTokenFx(g: Phaser.GameObjects.Graphics, now: number): void {
+    for (const fx of this.tokenFx) {
+      const p = (now - fx.at) / TOKEN_FX_MS;
+      const x = TOKEN_X + fx.index * TOKEN_STEP;
+      if (fx.kind === 'lost') {
+        g.fillStyle(hexToNumber(COLORS.ivory), 1 - p);
+        const spread = p * 14;
+        const half = TOKEN_W / 2;
+        const halfH = TOKEN_H / 2;
+        g.fillRect(x - spread, TOKEN_Y - spread, half, halfH);
+        g.fillRect(x + half + spread, TOKEN_Y - spread, half, halfH);
+        g.fillRect(x - spread, TOKEN_Y + halfH + spread, half, halfH);
+        g.fillRect(x + half + spread, TOKEN_Y + halfH + spread, half, halfH);
+      } else {
+        const grow = p * 8;
+        g.lineStyle(2, hexToNumber(COLORS.clawdLight), 1 - p);
+        g.strokeRect(x - grow, TOKEN_Y - grow, TOKEN_W + grow * 2, TOKEN_H + grow * 2);
       }
-      g.lineStyle(2, hexToNumber(i < tokens ? COLORS.ink : COLORS.cloudDark));
-      g.strokeRect(x, y, 18, 28);
     }
   }
 
@@ -215,6 +284,7 @@ export class UiScene extends Phaser.Scene {
     };
     const advance = (event: KeyboardEvent): void => {
       if (event.code !== 'KeyZ' && event.code !== 'Enter' && event.code !== 'Space') return;
+      audioDirector.playSfx('select');
       index++;
       show();
     };
@@ -244,6 +314,7 @@ export class UiScene extends Phaser.Scene {
     const start = (event: KeyboardEvent): void => {
       if (event.code !== 'KeyZ' && event.code !== 'Enter' && event.code !== 'Space') return;
       keyboard?.off('keydown', start);
+      audioDirector.playSfx('confirm');
       for (const obj of [bg, title, ornament, sub, press, help]) obj.destroy();
       onStart();
     };

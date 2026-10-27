@@ -135,8 +135,9 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 | Saltar | Z / Espacio | A |
 | Atacar | X / J | X |
 | Completar (dash) | C / K | RB |
-| Curar (mantener) | V / L | Y |
-| Interactuar / leer | ↑ cerca del objeto | ↑ |
+| Chispa ✻ (tocar) / Curar (mantener) | V / L | Y |
+| Interactuar / leer / descansar en la banca | ↑ cerca del objeto | ↑ |
+| Bailar (4 bailes en ciclo) | B | — |
 | Pausa | Esc / P | Start |
 
 ### 4.2 Valores iniciales de "feel" (480×270, se ajustan probando)
@@ -152,6 +153,8 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 | Golpe recibido | knockback 160 px/s, i-frames 900 ms, hit-stop 70 ms, sacudida de cámara leve |
 | Completar | 360 px/s durante 190 ms (unos 68 px), i-frames durante el dash, cooldown 450 ms |
 | Curar | mantener 900 ms; cuesta 33 de Contexto y cura 1 Token. Cada golpe dado suma 11 de Contexto |
+| Chispa ✻ | toque < 180 ms; cuesta 33 de Contexto, 300 px/s, 2 de daño, atraviesa enemigos |
+| Banca | ↑ para sentarse: guarda el commit y recupera 1 Token cada 220 ms |
 
 ### 4.3 Reglas
 - Al morir (**Compactación**) reapareces en el último Commit con todos los Tokens. No se pierde nada, porque es una demo corta.

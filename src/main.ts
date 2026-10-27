@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audioDirector } from './audio/AudioDirector';
 import { CANVAS_SCALE, GAME_HEIGHT, GAME_WIDTH } from './config/display';
 import { COLORS } from './config/palette';
 import { BootScene } from './scenes/BootScene';
@@ -20,7 +21,7 @@ async function loadFonts(): Promise<void> {
 
 await loadFonts();
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   width: GAME_WIDTH * CANVAS_SCALE,
@@ -31,5 +32,17 @@ new Phaser.Game({
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   physics: { default: 'arcade', arcade: { gravity: { x: 0, y: 0 }, debug: false } },
   input: { gamepad: true },
+  // Sound is synthesized by our own AudioDirector; Phaser's audio context would sit unused.
+  audio: { noAudio: true },
   scene: [BootScene, GameScene, UiScene],
 });
+
+// Browsers only allow audio after a user gesture; unlock() is cheap after the first call.
+for (const type of ['keydown', 'pointerdown'] as const) {
+  window.addEventListener(type, () => audioDirector.unlock());
+}
+
+// `?debug` exposes the game instance so headless smoke tests can inspect and drive it.
+if (new URLSearchParams(window.location.search).has('debug')) {
+  Object.assign(window, { agentGame: game });
+}

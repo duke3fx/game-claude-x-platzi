@@ -1,13 +1,17 @@
 import Phaser from 'phaser';
+import { audioDirector } from '../audio/AudioDirector';
 import { CANVAS_SCALE, GAME_HEIGHT, GAME_WIDTH, TILE } from '../config/display';
 import { COLORS, hexToNumber, ZONE_PALETTES, type ZoneId } from '../config/palette';
-import { ATTACK, CAMERA, DASH, HURT, PLAYER, VITALS } from '../config/tuning';
+import { ATTACK, CAMERA, DASH, HIT_FX, HURT, PLAYER, REST, SPELL, VITALS } from '../config/tuning';
 import {
   BOSS_DOUBTS,
   BOSS_LINES,
+  DANCE_NAMES,
   DESK_LINES,
   NOTE_TEXT,
   SIGN_TEXT,
+  SPINNER_GLYPHS,
+  THINKING_VERBS,
   TILDE_LINES,
   TILDE_POSTGAME,
   UI_TEXT,
@@ -16,19 +20,33 @@ import { CREDITS, ENDING, INTRO } from '../content/text';
 import {
   ARENA_GATE_COL,
   ARENA_TRIGGER_COL,
+  BENCH_COMMIT,
   ENTITIES,
   WORLD_ROWS,
   WORLD_TERRAIN,
   type WorldEntity,
   zoneAtCol,
 } from '../content/world';
+import { ActionBuffer } from '../core/actionBuffer';
 import { approach } from '../core/approach';
+import {
+  DANCE_DURATION_MS,
+  DANCE_ORDER,
+  type DanceBodyPose,
+  type DanceId,
+  danceAt,
+  dancePose,
+} from '../core/dance';
 import { JumpAssist } from '../core/jumpAssist';
 import { createDefaultSave, type SaveData, SaveStore } from '../core/save';
+import { TapHold } from '../core/tapHold';
 import { Vitals } from '../core/vitals';
+import { SoulSpark } from '../entities/SoulSpark';
 import { bakeParallax } from '../gfx/backgrounds';
 import { TILE_INDEX } from '../gfx/basicArt';
+import { CLAWD_FRAME } from '../gfx/clawdPoses';
 import { NEIGHBOR, TILESET_COLUMNS, TILESET_KEY, tileIndex, ZONE_ORDER } from '../gfx/tiles';
+import { burst, clawSlash, confetti, dust, flashWhite, impactStar } from '../systems/effects';
 import { SCENES } from './sceneKeys';
 import type { UiScene } from './UiScene';
 
@@ -46,6 +64,7 @@ type Keys = Record<
   | 'x'
   | 'c'
   | 'v'
+  | 'b'
   | 'enter',
   Phaser.Input.Keyboard.Key
 >;
@@ -99,6 +118,34 @@ const ENEMY_KNOCKBACK = 120;
 const EXTRA_GID = TILESET_COLUMNS * ZONE_ORDER.length;
 const BRIDGE_TILE = EXTRA_GID + TILE_INDEX.bridge;
 const ERASED_TILE = EXTRA_GID + TILE_INDEX.erased;
+type Action = 'jump' | 'attack' | 'dash' | 'dance' | 'interact' | 'confirm' | 'spell';
+
+/** Keyboard codes for each discrete action. */
+const ACTION_CODES: Readonly<Record<string, Action>> = {
+  KeyZ: 'jump',
+  Space: 'jump',
+  KeyX: 'attack',
+  KeyJ: 'attack',
+  KeyC: 'dash',
+  KeyK: 'dash',
+  KeyB: 'dance',
+  ArrowUp: 'interact',
+  KeyW: 'interact',
+  Enter: 'confirm',
+};
+const SPELL_CODES = new Set(['KeyV', 'KeyL']);
+
+const POSE_FRAME: Readonly<Record<DanceBodyPose, number>> = {
+  idle: CLAWD_FRAME.idle,
+  closed: CLAWD_FRAME.closed,
+  armsUp: CLAWD_FRAME.armsUp,
+  waveLeft: CLAWD_FRAME.waveLeft,
+  waveRight: CLAWD_FRAME.waveRight,
+  back: CLAWD_FRAME.back,
+};
+const GARABATO_HIT_HOP = 90;
+const ENEMY_DISSOLVE_MS = 220;
+const STEAM_INTERVAL_MS = 450;
 /** Story ending, then credits (with the legal line), then the open-world card. */
 const ENDING_SEQUENCE: readonly string[] = [
   ...ENDING.slice(0, -1),
@@ -152,6 +199,15 @@ export class GameScene extends Phaser.Scene {
   private trailMs = 0;
   private animMs = 0;
   private parallax: Array<{ sprite: Phaser.GameObjects.TileSprite; factor: number }> = [];
+  private spellInput = new TapHold(SPELL.tapMaxMs);
+  private actions = new ActionBuffer<Action>();
+  private castMs = 0;
+  private sparks: SoulSpark[] = [];
+  private dance: { id: DanceId; ms: number; beat: number } | null = null;
+  private danceCount = 0;
+  private danceGlyph: Phaser.GameObjects.Text | null = null;
+  private danceCaption: Phaser.GameObjects.Text | null = null;
+  private rest: { bench: Pickup; refillMs: number } | null = null;
   private zoneDecor: Partial<
     Record<ZoneId, { objects: Phaser.GameObjects.Components.AlphaSingle[]; baseAlphas: number[] }>
   > = {};
@@ -174,6 +230,7 @@ export class GameScene extends Phaser.Scene {
 
   private showTitle(): void {
     this.physics.world.pause();
+    audioDirector.playMusic('title');
     this.ui.showTitle(
       () => {
         const cards = this.save.finishedStory ? [UI_TEXT.zoneNames.sandbox] : INTRO;
@@ -181,6 +238,7 @@ export class GameScene extends Phaser.Scene {
           this.started = true;
           this.physics.world.resume();
           this.ui.zoneTitle(UI_TEXT.zoneNames[this.zone]);
+          audioDirector.playMusic(this.zone);
         });
       },
       UI_TEXT.subtitle,
@@ -427,6 +485,9 @@ export class GameScene extends Phaser.Scene {
         case 'commit':
           this.props.push({ entity, sprite: this.add.sprite(x, y - 9, 'commit', 0).setDepth(1) });
           break;
+        case 'bench':
+          this.spawnBench(entity, x, y);
+          break;
         case 'sign':
           this.props.push({ entity, sprite: this.add.sprite(x, y - 6, 'sign', 0).setDepth(1) });
           break;
@@ -527,8 +588,20 @@ export class GameScene extends Phaser.Scene {
       x: K.X,
       c: K.C,
       v: K.V,
+      b: K.B,
       enter: K.ENTER,
     }) as Keys;
+    keyboard.on('keydown', (event: KeyboardEvent) => {
+      if (event.repeat) return;
+      if (SPELL_CODES.has(event.code)) this.spellInput.press(this.time.now);
+      const action = ACTION_CODES[event.code];
+      if (action) this.actions.press(action);
+    });
+    keyboard.on('keyup', (event: KeyboardEvent) => {
+      if (SPELL_CODES.has(event.code) && this.spellInput.release(this.time.now)) {
+        this.actions.press('spell');
+      }
+    });
   }
 
   // ---------------------------------------------------------------- loop
@@ -536,21 +609,23 @@ export class GameScene extends Phaser.Scene {
   override update(_time: number, delta: number): void {
     if (!this.started || this.ui.cardsPlaying) return;
     if (this.ui.panelOpen) {
-      const k = this.keys;
-      if (
-        Phaser.Input.Keyboard.JustDown(k.z) ||
-        Phaser.Input.Keyboard.JustDown(k.enter) ||
-        Phaser.Input.Keyboard.JustDown(k.x)
-      ) {
+      const close = ['jump', 'attack', 'confirm'] as const;
+      if (close.some((action) => this.actions.peek(action))) {
         this.ui.hidePanel();
         this.physics.world.resume();
+        audioDirector.playSfx('confirm');
       }
+      this.actions.clear();
       return;
     }
-    if (this.physics.world.isPaused) return;
+    if (this.physics.world.isPaused) {
+      // Keep presses made during a hit-stop so they still register when time resumes.
+      return;
+    }
     const dt = Math.min(delta, 50);
     if (!this.dead) this.updatePlayer(dt);
     this.updateEnemies(dt);
+    this.updateSparks(dt);
     if (this.bossActive) this.updateBoss(dt);
     this.updateHazards(dt);
     if (!this.dead) {
@@ -560,6 +635,7 @@ export class GameScene extends Phaser.Scene {
     this.updateZone();
     this.updateAmbience();
     this.refreshHud();
+    this.actions.clear();
   }
 
   private input2(): { x: number; up: boolean; down: boolean } {
@@ -573,15 +649,41 @@ export class GameScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     const grounded = body.blocked.down;
     const move = this.input2();
-    const jumpPressed =
-      Phaser.Input.Keyboard.JustDown(k.z) || Phaser.Input.Keyboard.JustDown(k.space);
+    const jumpPressed = this.actions.consume('jump');
     const jumpHeld = k.z.isDown || k.space.isDown;
     const seconds = dt / 1000;
 
     this.attackMs = Math.max(0, this.attackMs - dt);
     this.invulnerableMs = Math.max(0, this.invulnerableMs - dt);
     this.dashCooldownMs = Math.max(0, this.dashCooldownMs - dt);
+    this.castMs = Math.max(0, this.castMs - dt);
     if (move.x !== 0) this.facing = move.x;
+
+    const leaving = move.x !== 0 || jumpPressed || this.actions.peek('attack');
+    if (this.rest) {
+      this.updateRest(dt, leaving);
+      this.animatePlayer(grounded, 0);
+      return;
+    }
+    if (this.dance) {
+      if (leaving || this.actions.peek('dash')) this.stopDance();
+      else if (this.actions.consume('dance')) {
+        this.startDance();
+        this.animatePlayer(grounded, 0);
+        return;
+      } else {
+        body.setVelocityX(approach(body.velocity.x, 0, PLAYER.deceleration * seconds));
+        this.dance.ms += dt;
+        if (this.dance.ms >= DANCE_DURATION_MS[this.dance.id]) this.stopDance();
+        this.animatePlayer(grounded, 0);
+        return;
+      }
+    }
+    if (this.actions.consume('dance') && grounded && this.dashMs <= 0) {
+      this.startDance();
+      this.animatePlayer(grounded, 0);
+      return;
+    }
 
     if (this.dashMs > 0) {
       this.dashMs -= dt;
@@ -590,12 +692,13 @@ export class GameScene extends Phaser.Scene {
       this.animatePlayer(grounded, move.x);
       return;
     }
-    if (Phaser.Input.Keyboard.JustDown(k.c) && this.hasAbility() && this.dashCooldownMs <= 0) {
+    if (this.actions.consume('dash') && this.hasAbility() && this.dashCooldownMs <= 0) {
       this.dashMs = DASH.durationMs;
       this.dashCooldownMs = DASH.cooldownMs + DASH.durationMs;
       body.setAllowGravity(false);
       this.setSquash(1.45, 0.7);
-      this.burst(this.player.x, this.player.y, COLORS.clawdLight, 6);
+      audioDirector.playSfx('dash');
+      burst(this, this.player.x, this.player.y, COLORS.clawdLight, 6);
       return;
     }
 
@@ -609,26 +712,29 @@ export class GameScene extends Phaser.Scene {
       this.jumpCut = false;
       this.setSquash(0.75, 1.3);
       this.dust(this.player.x, body.bottom, 4);
+      audioDirector.playSfx('jump');
     }
     if (!jumpHeld && body.velocity.y < 0 && !this.jumpCut) {
       body.setVelocityY(body.velocity.y * PLAYER.jumpCutMultiplier);
       this.jumpCut = true;
     }
 
-    // Healing: hold V while standing still.
-    if (k.v.isDown && grounded && this.vitals.canHeal) {
+    // V: a quick tap throws a spark; holding it (while standing) heals.
+    if (this.actions.consume('spell')) this.castSpark();
+    if (this.spellInput.isHolding(this.time.now) && grounded && this.vitals.canHeal) {
       body.setVelocityX(0);
       this.healHoldMs += dt;
       if (this.healHoldMs >= VITALS.healHoldMs) {
         this.vitals.heal();
         this.healHoldMs = 0;
-        this.burst(this.player.x, this.player.y, COLORS.clawdLight, 10);
+        audioDirector.playSfx('heal');
+        burst(this, this.player.x, this.player.y, COLORS.clawdLight, 10);
       }
     } else {
       this.healHoldMs = 0;
     }
 
-    if (Phaser.Input.Keyboard.JustDown(k.x) && this.attackMs <= 0)
+    if (this.attackMs <= 0 && this.actions.consume('attack'))
       this.attack(move.up, move.down && !grounded);
     if (grounded && !this.isSpikeBelow()) this.lastSafe.set(this.player.x, this.player.y);
     this.animatePlayer(grounded, move.x);
@@ -644,8 +750,23 @@ export class GameScene extends Phaser.Scene {
     if (grounded && !this.wasGrounded) {
       this.setSquash(1.3, 0.75);
       this.dust(this.player.x, body.bottom, 6);
+      audioDirector.playSfx('land');
     }
     this.wasGrounded = grounded;
+    if (this.dance) {
+      this.renderDance(body);
+      return;
+    }
+    if (this.rest) {
+      const breathing = Math.round((Math.sin(this.animMs / 700) + 1) / 2);
+      this.view
+        .setTexture('clawd', CLAWD_FRAME.closed)
+        .setPosition(this.player.x, body.bottom + 2 - REST.seatLift - breathing)
+        .setScale(1, 1)
+        .setAngle(0)
+        .setAlpha(1);
+      return;
+    }
 
     // Frames: blink, walk cycle, arms up for up-attacks and healing.
     const blink = Math.floor(this.walkMs / 100) % 34 === 0;
@@ -653,7 +774,8 @@ export class GameScene extends Phaser.Scene {
     const running = grounded && moveX !== 0;
     const step = Math.floor(this.walkMs / 110);
     if (running) frame = step % 2 === 0 ? 2 : 3;
-    if ((this.attackMs > 0 && this.input2().up) || this.healHoldMs > 0) frame = 4;
+    if ((this.attackMs > 0 && this.input2().up) || this.healHoldMs > 0 || this.castMs > 0)
+      frame = CLAWD_FRAME.armsUp;
     if (running && step !== Math.floor((this.walkMs - dt) / 110) && step % 4 === 0) {
       this.dust(this.player.x - moveX * 8, body.bottom, 2);
     }
@@ -709,20 +831,9 @@ export class GameScene extends Phaser.Scene {
     this.squash = { x, y };
   }
 
-  /** Small puffs of dust at Clawd's feet. */
+  /** Small puffs of dust at Clawd's feet, tinted for the zone. */
   private dust(x: number, y: number, count: number): void {
-    const color = this.zone === 'margin' ? COLORS.cloudDark : COLORS.cloudMedium;
-    for (let i = 0; i < count; i++) {
-      const puff = this.add.rectangle(x, y - 1, 2, 2, hexToNumber(color), 0.8).setDepth(6);
-      this.tweens.add({
-        targets: puff,
-        x: x + (i - count / 2) * 4,
-        y: y - 4 - (i % 3) * 2,
-        alpha: 0,
-        duration: 320,
-        onComplete: () => puff.destroy(),
-      });
-    }
+    dust(this, x, y, count, this.zone === 'margin' ? COLORS.cloudDark : COLORS.cloudMedium);
   }
 
   private attack(up: boolean, down: boolean): void {
@@ -752,14 +863,18 @@ export class GameScene extends Phaser.Scene {
         ATTACK.thickness,
       );
 
-    this.drawSlash(up ? -Math.PI / 2 : down ? Math.PI / 2 : this.facing > 0 ? 0 : Math.PI);
+    const angle = up ? -Math.PI / 2 : down ? Math.PI / 2 : this.facing > 0 ? 0 : Math.PI;
+    clawSlash(this, this.player.x, this.player.y - 1, angle);
+    audioDirector.playSfx('swing');
     this.setSquash(up || down ? 0.9 : 1.2, up || down ? 1.15 : 0.9);
 
     let hitSomething = false;
     for (const enemy of this.enemies) {
       if (enemy.hp <= 0) continue;
-      if (Phaser.Geom.Rectangle.Overlaps(rect, enemy.sprite.getBounds())) {
+      const bounds = enemy.sprite.getBounds();
+      if (Phaser.Geom.Rectangle.Overlaps(rect, bounds)) {
         this.damageEnemy(enemy);
+        impactStar(this, (rect.centerX + bounds.centerX) / 2, (rect.centerY + bounds.centerY) / 2);
         hitSomething = true;
       }
     }
@@ -769,83 +884,58 @@ export class GameScene extends Phaser.Scene {
       Phaser.Geom.Rectangle.Overlaps(rect, this.boss.getBounds())
     ) {
       this.damageBoss();
+      const bounds = this.boss.getBounds();
+      impactStar(this, (rect.centerX + bounds.centerX) / 2, rect.centerY);
       hitSomething = true;
     }
     if (down && this.spikeInRect(rect)) hitSomething = true;
     if (hitSomething) {
       const body = this.player.body as Phaser.Physics.Arcade.Body;
+      audioDirector.playSfx(down ? 'pogo' : 'hit');
       if (down) body.setVelocityY(-ATTACK.pogoVelocity);
       else if (!up) body.setVelocityX(-this.facing * ATTACK.recoilVelocity);
-      this.hitStop();
+      this.cameras.main.shake(HIT_FX.impactShakeMs, HIT_FX.impactShakeIntensity);
+      this.hitStop(HURT.hitStopMs);
     }
   }
 
-  /** A crescent "claw" arc around Clawd, pointing at `angle` (radians). */
-  private drawSlash(angle: number): void {
-    const SPREAD = 1.1;
-    const RADIUS = 20;
-    const g = this.add.graphics().setDepth(6).setPosition(this.player.x, this.player.y);
-    g.lineStyle(5, hexToNumber(COLORS.ivory), 0.95);
-    g.beginPath();
-    g.arc(0, 0, RADIUS, angle - SPREAD, angle + SPREAD);
-    g.strokePath();
-    g.lineStyle(2, hexToNumber(COLORS.clawdLight), 0.8);
-    g.beginPath();
-    g.arc(0, 0, RADIUS + 5, angle - SPREAD * 0.7, angle + SPREAD * 0.7);
-    g.strokePath();
-    this.tweens.add({
-      targets: g,
-      alpha: 0,
-      scale: 1.15,
-      duration: ATTACK.activeMs + 70,
-      onComplete: () => g.destroy(),
-    });
-  }
-
-  /** Brief white silhouette flash, the classic "you hit it" read. */
-  private flashWhite(target: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image): void {
-    const FLASH_MS = 80;
-    target.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
-    this.time.delayedCall(FLASH_MS, () => target.clearTint());
-  }
-
-  private hitStop(): void {
+  private hitStop(ms: number): void {
     this.physics.world.pause();
-    this.time.delayedCall(HURT.hitStopMs, () => {
+    this.time.delayedCall(ms, () => {
       if (!this.ui.panelOpen) this.physics.world.resume();
     });
   }
 
-  private damageEnemy(enemy: Enemy): void {
-    enemy.hp -= ATTACK.damage;
+  private damageEnemy(enemy: Enemy, damage: number = ATTACK.damage, gainContext = true): void {
+    enemy.hp -= damage;
     enemy.flashMs = 120;
-    this.flashWhite(enemy.sprite);
-    this.burst(enemy.sprite.x, enemy.sprite.y, COLORS.ink, 6);
-    this.vitals.registerHit();
+    flashWhite(this, enemy.sprite);
+    burst(this, enemy.sprite.x, enemy.sprite.y, COLORS.ink, 6);
+    if (gainContext) this.vitals.registerHit();
     const body = enemy.sprite.body as Phaser.Physics.Arcade.Body;
-    body.setVelocityX(Math.sign(enemy.sprite.x - this.player.x) * ENEMY_KNOCKBACK);
-    if (enemy.hp <= 0) {
-      this.burst(enemy.sprite.x, enemy.sprite.y, COLORS.ivory, 12);
-      enemy.sprite.disableBody(true, true);
-      if (enemy.label) {
-        enemy.label.setText('// HECHO');
-        this.tweens.add({ targets: enemy.label, alpha: 0, y: enemy.label.y - 10, duration: 900 });
-      }
-    }
+    body.setVelocityX(Math.sign(enemy.sprite.x - this.player.x || 1) * ENEMY_KNOCKBACK);
+    if (enemy.kind === 'garabato') body.setVelocityY(-GARABATO_HIT_HOP);
+    if (enemy.hp <= 0) this.killEnemy(enemy);
   }
 
-  private burst(x: number, y: number, color: string, count: number): void {
-    for (let i = 0; i < count; i++) {
-      const dot = this.add.rectangle(x, y, 2, 2, hexToNumber(color)).setDepth(7);
-      const angle = (i / count) * Math.PI * 2;
-      this.tweens.add({
-        targets: dot,
-        x: x + Math.cos(angle) * 22,
-        y: y + Math.sin(angle) * 22,
-        alpha: 0,
-        duration: 420,
-        onComplete: () => dot.destroy(),
-      });
+  /** Enemies don't die: they "resolve", squashing into ink and dissolving. */
+  private killEnemy(enemy: Enemy): void {
+    audioDirector.playSfx('enemyDie');
+    burst(this, enemy.sprite.x, enemy.sprite.y, COLORS.ivory, 14, 28);
+    burst(this, enemy.sprite.x, enemy.sprite.y, COLORS.ink, 8, 18);
+    enemy.sprite.disableBody(true, false);
+    this.tweens.add({
+      targets: enemy.sprite,
+      scaleX: 1.6,
+      scaleY: 0,
+      alpha: 0,
+      duration: ENEMY_DISSOLVE_MS,
+      ease: 'Quad.easeIn',
+      onComplete: () => enemy.sprite.setVisible(false),
+    });
+    if (enemy.label) {
+      enemy.label.setText('// HECHO');
+      this.tweens.add({ targets: enemy.label, alpha: 0, y: enemy.label.y - 10, duration: 900 });
     }
   }
 
@@ -934,6 +1024,7 @@ export class GameScene extends Phaser.Scene {
     for (let row = 11; row <= 16; row++) this.layer.putTileAt(ERASED_TILE, ARENA_GATE_COL, row);
     this.layer.setCollisionByExclusion([-1]);
     this.ui.toast(BOSS_LINES.intro, 3500);
+    audioDirector.playMusic('boss');
   }
 
   private resetBoss(): void {
@@ -944,6 +1035,7 @@ export class GameScene extends Phaser.Scene {
     this.hazards = [];
     this.ui.setBoss(null);
     this.boss.setFrame(0);
+    audioDirector.playMusic(this.zone);
   }
 
   private get bossPhase2(): boolean {
@@ -1004,6 +1096,7 @@ export class GameScene extends Phaser.Scene {
     const rect = new Phaser.Geom.Rectangle(startX - 14, 17 * TILE - 10, 28, 10);
     const hazard: Hazard = { rect, visual, lifeMs: 6000, activeAfterMs: BOSS_SWEEP_WARN_MS };
     this.hazards.push(hazard);
+    audioDirector.playSfx('erase');
     this.tweens.add({
       targets: visual,
       x: fromLeft ? 157 * TILE : (ARENA_GATE_COL + 1) * TILE,
@@ -1042,13 +1135,18 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private damageBoss(): void {
-    this.bossHp -= ATTACK.damage;
+  private damageBoss(damage: number = ATTACK.damage, gainContext = true): void {
+    const before = this.bossHp;
+    this.bossHp -= damage;
     this.bossFlashMs = 100;
-    this.flashWhite(this.boss);
-    this.burst(this.boss.x, this.boss.y + 20, COLORS.ink, 8);
-    this.vitals.registerHit();
-    if (this.bossHp === Math.floor(BOSS_HP / 2)) this.ui.toast(BOSS_LINES.phase2, 3500);
+    audioDirector.playSfx('bossHit');
+    flashWhite(this, this.boss);
+    burst(this, this.boss.x, this.boss.y + 20, COLORS.ink, 8);
+    if (gainContext) this.vitals.registerHit();
+    if (before > BOSS_HP / 2 && this.bossHp <= BOSS_HP / 2) {
+      this.ui.toast(BOSS_LINES.phase2, 3500);
+      audioDirector.playSfx('bossPhase');
+    }
     if (this.bossHp <= 0) this.defeatBoss();
   }
 
@@ -1058,6 +1156,8 @@ export class GameScene extends Phaser.Scene {
     for (const hazard of this.hazards) hazard.visual.destroy();
     this.hazards = [];
     this.ui.toast(BOSS_LINES.defeat, 3000);
+    audioDirector.playSfx('bossDefeat');
+    audioDirector.playMusic('ending');
     this.tweens.add({ targets: this.boss, alpha: 0, scale: 1.4, duration: 2200 });
     this.time.delayedCall(2600, () => {
       this.ui.playCards(ENDING_SEQUENCE, () => this.openWorld());
@@ -1070,6 +1170,7 @@ export class GameScene extends Phaser.Scene {
     for (let row = 11; row <= 16; row++) this.layer.removeTileAt(ARENA_GATE_COL, row);
     for (const cell of this.erasedCells) this.layer.removeTileAt(cell.col, cell.row);
     this.persist({ finishedStory: true });
+    audioDirector.playMusic(this.zone);
     this.ui.toast(UI_TEXT.notes(this.save.notes.length, this.totalNotes()), 4000);
   }
 
@@ -1133,10 +1234,15 @@ export class GameScene extends Phaser.Scene {
     this.invulnerableMs = HURT.invulnerableMs;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(Math.sign(this.player.x - fromX || 1) * HURT.knockbackX, -HURT.knockbackY);
+    this.stopDance();
+    this.rest = null;
     this.cameras.main.shake(HURT.shakeMs, HURT.shakeIntensity);
-    this.flashWhite(this.view);
+    flashWhite(this, this.view);
     this.setSquash(1.3, 0.7);
-    this.hitStop();
+    burst(this, this.player.x, this.player.y, COLORS.clawdBody, 8, 26);
+    burst(this, this.player.x, this.player.y, COLORS.ink, 6, 20);
+    this.hitStop(HIT_FX.hurtStopMs);
+    audioDirector.playSfx(this.vitals.isDead ? 'death' : 'hurt');
     if (this.vitals.isDead) this.die();
   }
 
@@ -1144,7 +1250,7 @@ export class GameScene extends Phaser.Scene {
     this.dead = true;
     this.ui.toast(UI_TEXT.compacting, RESPAWN_DELAY_MS);
     this.view.setVisible(false);
-    this.burst(this.player.x, this.player.y, COLORS.clawdBody, 16);
+    burst(this, this.player.x, this.player.y, COLORS.clawdBody, 16);
     this.time.delayedCall(RESPAWN_DELAY_MS, () => {
       if (this.bossActive) this.resetBoss();
       const checkpoint = this.checkpointPosition(this.save.checkpointId);
@@ -1171,6 +1277,7 @@ export class GameScene extends Phaser.Scene {
         const note = NOTE_TEXT[pickup.entity.id];
         this.persist({ notes: [...this.save.notes, pickup.entity.id] });
         this.physics.world.pause();
+        audioDirector.playSfx('note');
         this.ui.showPanel(`${UI_TEXT.noteFound} · ${note?.title ?? ''}`, note?.body ?? '');
         return;
       }
@@ -1182,11 +1289,18 @@ export class GameScene extends Phaser.Scene {
       const { kind, id } = prop.entity;
       if (kind === 'sign') hint = SIGN_TEXT[id] ?? '';
       if (kind === 'tilde') hint = this.tildeHint(dt);
+      if (kind === 'bench' && !this.rest) {
+        hint = UI_TEXT.rest;
+        const sit = this.actions.consume('interact');
+        if (sit && !this.dance && (this.player.body as Phaser.Physics.Arcade.Body).blocked.down)
+          this.startRest(prop);
+      }
       if (kind === 'commit' && this.save.checkpointId !== id) {
         this.persist({ checkpointId: id });
         this.vitals.restore();
         prop.sprite.setFrame(1);
         this.ui.toast(UI_TEXT.saved);
+        audioDirector.playSfx('commit');
       }
       if (kind === 'desk' && !this.hasAbility()) {
         this.persist({ abilities: ['complete'] });
@@ -1194,12 +1308,13 @@ export class GameScene extends Phaser.Scene {
         this.layer.setCollisionByExclusion([-1]);
         this.drawBridgeOutline();
         this.physics.world.pause();
+        audioDirector.playSfx('ability');
         this.ui.showPanel('COMPLETAR [C]', DESK_LINES.join('\n\n'));
       }
     }
     for (const prop of this.props) {
       if (prop.entity.kind === 'commit')
-        prop.sprite.setFrame(prop.entity.id === this.save.checkpointId ? 1 : 0);
+        prop.sprite.setFrame(this.isActiveCommit(prop.entity.id) ? 1 : 0);
     }
     this.ui.setHint(hint);
     if (!this.bossActive && !this.save.finishedStory && px > ARENA_TRIGGER_COL * TILE)
@@ -1224,6 +1339,7 @@ export class GameScene extends Phaser.Scene {
     for (const [id, emitter] of Object.entries(this.ambience)) emitter.emitting = id === zone;
     this.showZoneDecor(zone);
     this.ui.zoneTitle(UI_TEXT.zoneNames[zone]);
+    if (!this.bossActive) audioDirector.playMusic(zone);
   }
 
   private refreshHud(): void {
@@ -1232,8 +1348,187 @@ export class GameScene extends Phaser.Scene {
       this.vitals.maxTokens,
       this.vitals.context,
       VITALS.maxContext,
+      SPELL.cost,
     );
     this.ui.setNotes(UI_TEXT.notes(this.save.notes.length, this.totalNotes()));
+  }
+
+  // ---------------------------------------------------------------- abilities
+
+  /** "Chispa ✻": spend Contexto to throw a spark in the facing direction. */
+  private castSpark(): void {
+    if (this.castMs > 0 || this.dashMs > 0) return;
+    if (!this.vitals.spendContext(SPELL.cost)) {
+      this.ui.toast(UI_TEXT.noContext, 1200);
+      return;
+    }
+    this.castMs = SPELL.castLockMs;
+    audioDirector.playSfx('swing');
+    (this.player.body as Phaser.Physics.Arcade.Body).setVelocityX(-this.facing * SPELL.recoil);
+    this.setSquash(1.25, 0.8);
+    burst(this, this.player.x + this.facing * 10, this.player.y, COLORS.clawdLight, 8, 14);
+    this.sparks.push(
+      new SoulSpark(this, this.player.x + this.facing * 14, this.player.y - 1, this.facing),
+    );
+  }
+
+  private updateSparks(dt: number): void {
+    const isSolid = (x: number, y: number): boolean => this.layer.getTileAtWorldXY(x, y) !== null;
+    this.sparks = this.sparks.filter((spark) => {
+      if (!spark.update(dt, isSolid)) return false;
+      for (const enemy of this.enemies) {
+        if (enemy.hp <= 0) continue;
+        if (!Phaser.Geom.Rectangle.Overlaps(spark.bounds, enemy.sprite.getBounds())) continue;
+        if (!spark.registerHit(enemy)) continue;
+        this.damageEnemy(enemy, SPELL.damage, false);
+        impactStar(this, spark.x, spark.y);
+        audioDirector.playSfx('hit');
+      }
+      const bossHit =
+        this.bossActive &&
+        this.bossHp > 0 &&
+        Phaser.Geom.Rectangle.Overlaps(spark.bounds, this.boss.getBounds()) &&
+        spark.registerHit(this.boss);
+      if (bossHit) {
+        this.damageBoss(SPELL.damage, false);
+        impactStar(this, spark.x, spark.y);
+      }
+      return true;
+    });
+  }
+
+  private startDance(): void {
+    this.stopDance();
+    const id = danceAt(this.danceCount);
+    this.danceCount++;
+    this.dance = { id, ms: 0, beat: -1 };
+    const index = DANCE_ORDER.indexOf(id) + 1;
+    this.ui.toast(UI_TEXT.dance(index, DANCE_ORDER.length, DANCE_NAMES[id]), 1800);
+    audioDirector.playSfx('select');
+    if (id === 'thinking') {
+      const style = {
+        fontFamily: 'Georgia, serif',
+        color: COLORS.clawdLight,
+        resolution: CANVAS_SCALE,
+      };
+      this.danceGlyph = this.add
+        .text(this.player.x, this.player.y - 22, '✻', { ...style, fontSize: '12px' })
+        .setOrigin(0.5)
+        .setDepth(8);
+      const verb = THINKING_VERBS[this.danceCount % THINKING_VERBS.length] ?? '';
+      this.danceCaption = this.add
+        .text(this.player.x, this.player.y - 34, verb, {
+          ...style,
+          fontFamily: 'ui-monospace, Menlo, monospace',
+          fontSize: '7px',
+          color: COLORS.cloudLight,
+        })
+        .setOrigin(0.5)
+        .setDepth(8);
+    }
+  }
+
+  private stopDance(): void {
+    this.dance = null;
+    this.danceGlyph?.destroy();
+    this.danceCaption?.destroy();
+    this.danceGlyph = null;
+    this.danceCaption = null;
+    this.view.setAngle(0);
+  }
+
+  private renderDance(body: Phaser.Physics.Arcade.Body): void {
+    if (!this.dance) return;
+    const pose = dancePose(this.dance.id, this.dance.ms);
+    const key = pose.look < 0 ? 'clawdLeft' : pose.look > 0 ? 'clawdRight' : 'clawd';
+    const y = body.bottom + 2 + pose.offsetY;
+    this.view
+      .setTexture(key, POSE_FRAME[pose.pose])
+      .setPosition(this.player.x, y)
+      .setScale(pose.scaleX, pose.scaleY)
+      .setAngle(pose.angle)
+      .setAlpha(1);
+    if (pose.beat !== this.dance.beat) {
+      this.dance.beat = pose.beat;
+      if (this.dance.id === 'hooray') confetti(this, this.player.x, y - 18);
+      if (this.dance.id === 'turntable') this.dust(this.player.x, body.bottom, 3);
+      this.danceGlyph?.setText(SPINNER_GLYPHS[pose.beat % SPINNER_GLYPHS.length] ?? '✻');
+    }
+    this.danceGlyph?.setPosition(this.player.x, y - 26);
+    this.danceCaption?.setPosition(this.player.x, y - 36);
+  }
+
+  private spawnBench(entity: WorldEntity, x: number, y: number): void {
+    const sprite = this.add.sprite(x, y - 10, 'bench', 0).setDepth(1);
+    this.props.push({ entity, sprite });
+    this.add
+      .image(x + 18, y - 14, 'halo')
+      .setTint(hexToNumber(COLORS.peach))
+      .setAlpha(0.35)
+      .setScale(1.2)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setDepth(0);
+    // Steam rising from Luz's coffee mug.
+    this.time.addEvent({
+      delay: STEAM_INTERVAL_MS,
+      loop: true,
+      callback: () => {
+        const puff = this.add
+          .rectangle(
+            x + 18 + Phaser.Math.Between(-1, 1),
+            y - 12,
+            2,
+            2,
+            hexToNumber(COLORS.ivory),
+            0.6,
+          )
+          .setDepth(2);
+        this.tweens.add({
+          targets: puff,
+          y: y - 26,
+          x: puff.x + Phaser.Math.Between(-3, 3),
+          alpha: 0,
+          duration: 1400,
+          onComplete: () => puff.destroy(),
+        });
+      },
+    });
+  }
+
+  /** Sit on a bench: save here and refill Tokens one by one. */
+  private startRest(bench: Pickup): void {
+    this.rest = { bench, refillMs: 0 };
+    this.stopDance();
+    const body = this.player.body as Phaser.Physics.Arcade.Body;
+    body.setVelocity(0, 0);
+    this.player.setX(bench.sprite.x - 4);
+    this.persist({ checkpointId: bench.entity.id });
+    this.ui.toast(UI_TEXT.resting);
+    audioDirector.playSfx('commit');
+    this.ui.setHint('');
+    burst(this, this.player.x, this.player.y, COLORS.peach, 12, 20);
+  }
+
+  private updateRest(dt: number, leaving: boolean): void {
+    if (!this.rest) return;
+    (this.player.body as Phaser.Physics.Arcade.Body).setVelocityX(0);
+    this.rest.refillMs += dt;
+    if (this.rest.refillMs >= REST.refillIntervalMs) {
+      this.rest.refillMs = 0;
+      if (this.vitals.addToken()) {
+        burst(this, this.player.x, this.player.y - 6, COLORS.ivory, 6, 12);
+        audioDirector.playSfx('heal');
+      }
+    }
+    if (leaving) {
+      this.rest = null;
+      this.setSquash(0.85, 1.2);
+    }
+  }
+
+  private isActiveCommit(commitId: string): boolean {
+    const checkpoint = this.save.checkpointId;
+    return checkpoint === commitId || BENCH_COMMIT[checkpoint] === commitId;
   }
 
   // ---------------------------------------------------------------- helpers

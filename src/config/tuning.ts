@@ -57,3 +57,31 @@ export const CAMERA = {
   deadzoneHeight: 30,
   lookAheadY: 0,
 } as const;
+
+/** "Chispa ✻": tap the heal key to throw a soul projectile that costs Contexto. */
+export const SPELL = {
+  cost: 33,
+  speed: 300,
+  damage: 2,
+  lifetimeMs: 900,
+  tapMaxMs: 180,
+  recoil: 70,
+  castLockMs: 240,
+} as const;
+
+/** Resting on a bench refills one Token every interval. */
+export const REST = {
+  refillIntervalMs: 220,
+  seatLift: 8,
+} as const;
+
+export const HIT_FX = {
+  slashSweepMs: 90,
+  slashFadeMs: 110,
+  slashRadius: 19,
+  slashThickness: 9,
+  impactMs: 160,
+  impactShakeMs: 70,
+  impactShakeIntensity: 0.0025,
+  hurtStopMs: 150,
+} as const;
