@@ -162,7 +162,7 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 
 ### 4.3 Reglas
 - Al morir (**Compactación**) reapareces en el último Commit con todos los Tokens. No se pierde nada, porque es una demo corta.
-- **Modo asistido** en ajustes: recibes la mitad de daño.
+- **Modo asistido** en ajustes: recibes la mitad de daño (cada golpe vacía medio Token; el HUD lo muestra a medias).
 
 ### 4.4 Accesorios
 Son cosméticos, al estilo de los amuletos de Hollow Knight: se eligen en una banca. Sentado, **↑** abre el **Armario**. Con **← →** se recorre y Clawd se pone al instante cada accesorio desbloqueado; **Z** cierra. La elección se guarda y también aparece en la portada.

@@ -77,6 +77,41 @@ describe('Vitals', () => {
     expect(vitals.tokens).toBe(3);
   });
 
+  it('takes half hits as half a Token: two of them cost one whole Token', () => {
+    const vitals = new Vitals(config);
+    vitals.takeDamage(0.5);
+    expect(vitals.tokens).toBe(5);
+    expect(vitals.wound).toBe(0.5);
+    vitals.tick(1000);
+    vitals.takeDamage(0.5);
+    expect(vitals.tokens).toBe(4);
+    expect(vitals.wound).toBe(0);
+    expect(vitals.health).toBe(4);
+  });
+
+  it('dies only once the last half is gone', () => {
+    const vitals = new Vitals({ ...config, maxTokens: 1 });
+    vitals.takeDamage(0.5);
+    expect(vitals.isDead).toBe(false);
+    vitals.tick(1000);
+    vitals.takeDamage(0.5);
+    expect(vitals.isDead).toBe(true);
+  });
+
+  it('mends a half-lost Token when healing or resting', () => {
+    const vitals = new Vitals(config);
+    vitals.takeDamage(0.5);
+    for (let i = 0; i < 3; i++) vitals.registerHit();
+    expect(vitals.canHeal).toBe(true);
+    expect(vitals.heal()).toBe(true);
+    expect([vitals.tokens, vitals.wound]).toEqual([5, 0]);
+    vitals.tick(1000);
+    vitals.takeDamage(0.5);
+    expect(vitals.addToken()).toBe(true);
+    expect(vitals.addToken()).toBe(false);
+    expect(vitals.health).toBe(5);
+  });
+
   it('can start the grace time without a hit, never shortening one in progress', () => {
     const vitals = new Vitals(config);
     vitals.protect();

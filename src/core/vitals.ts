@@ -10,7 +10,10 @@ export interface VitalsConfig {
 
 export class Vitals {
   private readonly config: VitalsConfig;
+  /** Tokens still (at least partly) full. */
   tokens: number;
+  /** How much of the last full Token is already gone, from 0 to 1 (half hits in assist mode). */
+  wound = 0;
   context = 0;
   /** Grace time left (ms): while above zero, hits are ignored. */
   invulnerableMs = 0;
@@ -24,12 +27,17 @@ export class Vitals {
     return this.config.maxTokens;
   }
 
+  /** Health in Tokens, fractions included. */
+  get health(): number {
+    return this.tokens - this.wound;
+  }
+
   get isDead(): boolean {
     return this.tokens <= 0;
   }
 
   get canHeal(): boolean {
-    return this.context >= this.config.healCost && this.tokens < this.config.maxTokens;
+    return this.context >= this.config.healCost && this.health < this.config.maxTokens;
   }
 
   get isInvulnerable(): boolean {
@@ -44,7 +52,7 @@ export class Vitals {
   /** Takes a hit and starts the grace time, unless still in it. Returns whether the hit landed. */
   takeDamage(amount: number): boolean {
     if (this.isInvulnerable) return false;
-    this.tokens = Math.max(0, this.tokens - amount);
+    this.setHealth(this.health - amount);
     this.invulnerableMs = this.config.invulnerableMs;
     return true;
   }
@@ -72,18 +80,24 @@ export class Vitals {
   heal(): boolean {
     if (!this.canHeal) return false;
     this.context -= this.config.healCost;
-    this.tokens += 1;
+    this.setHealth(this.health + 1);
     return true;
   }
 
   /** Restores a single Token (resting on a bench). Returns false when already full. */
   addToken(): boolean {
-    if (this.tokens >= this.config.maxTokens) return false;
-    this.tokens += 1;
+    if (this.health >= this.config.maxTokens) return false;
+    this.setHealth(this.health + 1);
     return true;
   }
 
   restore(): void {
-    this.tokens = this.config.maxTokens;
+    this.setHealth(this.config.maxTokens);
+  }
+
+  private setHealth(health: number): void {
+    const clamped = Math.max(0, Math.min(this.config.maxTokens, health));
+    this.tokens = Math.ceil(clamped);
+    this.wound = this.tokens - clamped;
   }
 }

@@ -1220,7 +1220,7 @@ export class GameScene extends Phaser.Scene {
 
   private hurt(fromX: number): void {
     const damage = this.save.assistMode ? HURT.assistDamageMultiplier : 1;
-    if (!this.vitals.takeDamage(Math.ceil(damage))) return;
+    if (!this.vitals.takeDamage(damage)) return;
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(Math.sign(this.player.x - fromX || 1) * HURT.knockbackX, -HURT.knockbackY);
     this.stopDance();
@@ -1343,6 +1343,7 @@ export class GameScene extends Phaser.Scene {
   private refreshHud(): void {
     this.ui.setHud(
       this.vitals.tokens,
+      this.vitals.wound,
       this.vitals.maxTokens,
       this.vitals.context,
       VITALS.maxContext,

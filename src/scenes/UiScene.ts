@@ -207,6 +207,7 @@ export class UiScene extends Phaser.Scene {
 
   setHud(
     tokens: number,
+    wound: number,
     maxTokens: number,
     context: number,
     maxContext: number,
@@ -220,8 +221,10 @@ export class UiScene extends Phaser.Scene {
     for (let i = 0; i < maxTokens; i++) {
       const x = TOKEN_X + i * TOKEN_STEP;
       if (i < tokens) {
+        // The last Token drains from the top when only part of it is gone.
+        const gone = i === tokens - 1 ? Math.round(TOKEN_H * wound) : 0;
         g.fillStyle(hexToNumber(COLORS.ivory));
-        g.fillRect(x, TOKEN_Y, TOKEN_W, TOKEN_H);
+        g.fillRect(x, TOKEN_Y + gone, TOKEN_W, TOKEN_H - gone);
         g.fillStyle(hexToNumber(COLORS.cloudMedium));
         g.fillRect(x, TOKEN_Y + 22, TOKEN_W, 6);
       }
