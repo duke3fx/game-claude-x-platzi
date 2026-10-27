@@ -90,11 +90,13 @@
 | # | Tramo | Contenido | Tiempo |
 |---|---|---|---|
 | 0 | **Intro** | Pantalla negra, una tecla suena a lo lejos y Clawd se ensambla con caracteres de bloque. Texto: "Sesión 42. Hace 1.096 días alguien dejó una pregunta sin responder." | 0:15 |
-| 1 | **El Arenero** (zona 1) | Tutorial con los carteles de Luz ("← → para caminar (creo)"), Tilde (NPC guía), Garabatos, Commit 1 y Notas 1–2 | 0:45 |
-| 2 | **Biblioteca Nocturna** (zona 2) | Subida vertical con TODOs voladores, un Espejismo, Notas 3–4, el **escritorio de Luz** (desbloqueo de **Completar**) y el Commit 2 | 0:50 |
+| 1 | **El Arenero** (zona 1) | Tutorial con los carteles de Luz ("← → para caminar (creo)"), Tilde (NPC guía), Grok Bots, Commit 1 y Notas 1–2 | 0:45 |
+| 1b | **Rival 1: Luna** | Arena al final del Arenero | 0:40 |
+| 2 | **Biblioteca Nocturna** (zona 2) | Subida vertical con Dots voladores, Notas 3–4, el **escritorio de Luz** (desbloqueo de **Completar**) y el Commit 2 | 0:50 |
+| 2b | **Rival 2: Brasa** | Arena al final de la Biblioteca | 0:45 |
 | 3 | **El Margen** (zona 3) | Puente `// TODO: puente` que solo se cruza con Completar, Nota "La pregunta pendiente" y Commit 3 | 0:20 |
-| 4 | **Jefe: La Hoja en Blanco** | Fase 1 con Selección y Goma. Fase 2 con el giro de las letras de Luz | 0:45 |
-| 5 | **Final** | Texto de Luz y la respuesta "1. Sí". Créditos breves. "El mundo sigue abierto." | 0:15 |
+| 4 | **Rival final: Nébula** | Arena del Margen | 0:50 |
+| 5 | **Final** | Clawd se convierte en **la mejor IA**; luego la respuesta "1. Sí" de Luz. Créditos breves. "El mundo sigue abierto." | 0:15 |
 
 ### 3.2 Mapa abierto post-final
 Al terminar, el jugador vuelve al mundo en el último Commit:
@@ -162,28 +164,22 @@ Todo es un único mapa continuo, sin cargas, así que "mapa abierto" sale natura
 - Al morir (**Compactación**) reapareces en el último Commit con todos los Tokens. No se pierde nada, porque es una demo corta.
 - **Modo asistido** en ajustes: recibes la mitad de daño.
 
-## 5. Enemigos y jefe
+## 5. Enemigos y rivales
 
 | Enemigo | Zona | Comportamiento | Vida |
 |---|---|---|---|
-| **Garabato** | Arenero | Patrulla y gira en los bordes; daño por contacto | 3 |
-| **TODO** | Biblioteca | Vuela en onda senoidal. Su texto cambia de `TODO` a `AHORA` 400 ms antes de lanzarse en picada. Al morir: `// HECHO` | 2 |
-| **Espejismo** | Biblioteca / Margen | Plataforma falsa que brilla demasiado, no tiene sombra y se desvanece al pisarla | — |
-| **Llave Huérfana** *(post)* | Post-final | Escudo frontal; solo es vulnerable desde arriba (pogo) o por la espalda | 5 |
-| **El Bucle** *(minijefe post)* | Sótano | Rueda de pared a pared, abanico de 3 chispas y caída con onda. Siempre en el mismo orden | 18 |
+| **Grok Bot** | Arenero / Biblioteca | Robot cuadrado con visor en diagonal. Patrulla y gira en los bordes; daño por contacto | 2 |
+| **Dots** | Biblioteca | Tres puntos de "escribiendo…". Flotan y, cuando Clawd se acerca, cambian a `¡!` y se lanzan en picada. Al morir: `// enviado` | 1 |
 
-**Jefe final: LA HOJA EN BLANCO** (vida 30, la fase 2 empieza en 15)
-- **Lore:** la orden pendiente de "borra todo", sumada a todas las dudas de Luz. Es tranquila, casi amable, y cree que borrar es misericordia: "Si no existe, no puede estar mal."
-- **Fase 1:**
-  - **Selección:** un rectángulo con borde magenta punteado (600 ms de aviso) que luego borra el suelo durante 2 s.
-  - **Goma:** barre el suelo de lado a lado (550 ms de aviso: caen migas). Se esquiva saltando.
-  - Tras cada ataque dobla una esquina y deja el núcleo expuesto.
-- **Fase 2 (el giro):**
-  - Borra todo el suelo y Clawd cae.
-  - Desde el cursor, Luz escribe `No lo borres.` letra por letra, y cada letra es una plataforma.
-  - La Hoja intenta seleccionar las letras (700 ms de aviso). Golpear la selección la cancela, como un `esc`.
-  - Su vulnerabilidad sale a la altura de las letras.
-- **Derrota:** no explota. La tinta de Luz la empapa hasta convertirla en la página "Capítulo 1". Última línea: "Entonces… no estaba vacía. Estaba esperando."
+**Tres IAs rivales** (parodias de fans), una por zona, cada una en una arena que se cierra al entrar. Su cuerpo no hace daño: solo sus ataques. Todas tienen aviso magenta antes de golpear y una fase 2 al 50 % de vida. Al vencer a una, la arena se abre, se recuperan los Tokens y se guarda el progreso (`flags: boss:<id>`).
+
+| Rival | Estilo | Vida | Fase 1 | Fase 2 |
+|---|---|---|---|---|
+| **Luna, la Exploradora** | Astronauta con cabeza de luna creciente; gravedad | 10 | **Salto lunar** (aterriza sobre Clawd y lanza ondas por el suelo), **Lluvia de meteoritos** (columnas marcadas; las cornisas protegen), **Luna boomerang** (va y vuelve a la altura del pecho) | Dos saltos seguidos, más meteoritos y una segunda luna alta |
+| **Brasa, la Llama Veloz** | Héroe con cabeza de fuego; velocidad | 12 | **Carga ígnea** (cruza la arena y deja el suelo ardiendo; hay que subirse a una cornisa), **Lluvia de brasas** (bolas de fuego en parábola) | Más rápida y añade **Pilares de fuego** que brotan en cadena hacia Clawd |
+| **Nébula, la Mente Infinita** | Espíritu galáctico que vuela; cosmos | 16 | **Órbita estelar** (estrellas giran a su alrededor y luego salen disparadas), **Salto cuántico** (se teletransporta encima de Clawd y estalla en un anillo de estrellas) | Añade **Agujero negro**: arrastra a Clawd al centro (el dash libera) mientras las estrellas caen en espiral |
+
+**Final:** al caer Nébula, Clawd se convierte en la mejor IA: "No por ser la más grande ni la más rápida: terminó lo que otra persona empezó, sin borrarle nada."
 
 ## 6. Dirección de arte
 - **Celda base de 2 px:** los sprites se definen como grillas ASCII y se pintan a 2 px por celda. Clawd mide 17×10 celdas (34×20 px) y los tiles 8×8 celdas (16 px).

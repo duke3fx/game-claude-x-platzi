@@ -9,6 +9,7 @@ export const SIGN_TEXT: Readonly<Record<string, string>> = {
   rest: '↑ junto a la banca para descansar y recuperar Tokens',
   bridge: '// TODO: puente',
   erasedEdge: 'Aquí el mundo está borrado. Por ahora.',
+  rival: 'Más allá: Luna, la primera IA rival. Descansa antes de entrar.',
 };
 
 export const NOTE_TEXT: Readonly<Record<string, { title: string; body: string }>> = {
@@ -41,10 +42,12 @@ export const NOTE_TEXT: Readonly<Record<string, { title: string; body: string }>
 export const TILDE_LINES: readonly string[] = [
   'Tilde: ¡Un protagonista! ¡Por fin! Soy Tilde. Luz me iba a dar una cara. Me quedé en el boceto.',
   'Tilde: Arriba está la Luz. Bueno, el cursor. Bueno, ella. Es complicado.',
-  'Tilde: El Blanco se está comiendo los bordes. Ve a la derecha, hacia el Margen.',
+  'Tilde: Tres IAs rivales se metieron en el Borrador: Luna, Brasa y Nébula. Ve a la derecha y demuéstrales quién es Clawd.',
+  'Tilde: Cuidado con los Grok Bots y los Dots. Los Dots siempre están escribiendo… y luego se lanzan.',
 ];
 
 export const TILDE_POSTGAME: readonly string[] = [
+  'Tilde: ¡La mejor IA del Borrador! ¿Me firmas el boceto?',
   'Tilde: Volvió. ¡Volvió! El borde de la izquierda ya no está borrado.',
   'Tilde: Dicen que allí dejaron la última línea de CLAUDE.md...',
 ];
@@ -55,19 +58,30 @@ export const DESK_LINES: readonly string[] = [
   'Donde una línea empieza, tú puedes terminarla.',
 ];
 
-export const BOSS_LINES = {
-  intro: 'La Hoja en Blanco: Si no existe, no puede estar mal.',
-  phase2: 'Una tecla suena a lo lejos... Luz escribe: "No lo borres."',
-  defeat: 'La Hoja en Blanco: Entonces... no estaba vacía. Estaba esperando.',
+/** The rival AIs: HK-style title card (name + epithet) and what they say. */
+export const BOSS_TEXT = {
+  luna: {
+    name: 'Luna',
+    epithet: 'la Exploradora',
+    intro: 'Luna: ¿Un agente de terminal? Yo llegué a la Luna primero.',
+    phase2: 'Luna: ¡Gravedad cero! A ver si tus garras flotan.',
+    defeat: 'Luna: Vale... tú sí aterrizas las ideas.',
+  },
+  brasa: {
+    name: 'Brasa',
+    epithet: 'la Llama Veloz',
+    intro: 'Brasa: ¡Yo respondo antes de que termines de preguntar!',
+    phase2: 'Brasa: ¡Más rápido! ¡Más tokens! ¡MÁS FUEGO!',
+    defeat: 'Brasa: Rápido no es lo mismo que bien... anotado.',
+  },
+  nebula: {
+    name: 'Nébula',
+    epithet: 'la Mente Infinita',
+    intro: 'Nébula: Mi contexto es del tamaño de una galaxia. ¿Y el tuyo?',
+    phase2: 'Nébula: Si no puedo ganarte, te tragará mi agujero negro.',
+    defeat: 'Nébula: Tanto espacio... y lo que faltaba era escuchar.',
+  },
 } as const;
-
-export const BOSS_DOUBTS: readonly string[] = [
-  'esto está horrible',
-  'nadie va a volver',
-  'no sirvo',
-  'borra todo',
-  'es tarde',
-];
 
 export const UI_TEXT = {
   title: 'AGENT',
@@ -86,6 +100,11 @@ export const UI_TEXT = {
   close: '[Z] cerrar',
   zoneNames: { sandbox: 'El Arenero', library: 'La Biblioteca Nocturna', margin: 'El Margen' },
   notes: (found: number, total: number) => `Notas ${found}/${total}`,
+  rivalBeaten: (name: string, beaten: number, total: number) =>
+    `${name} superada · Rivales ${beaten}/${total}`,
+  dotsTyping: 'escribiendo…',
+  dotsAlert: '¡!',
+  dotsDone: '// enviado',
 } as const;
 
 export const DANCE_NAMES = {

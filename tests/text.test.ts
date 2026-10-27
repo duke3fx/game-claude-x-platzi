@@ -166,13 +166,15 @@ describe('INTRO / ENDING / CREDITS', () => {
     expect(INTRO[0]?.startsWith('Sesión 42.')).toBe(true);
     expect(INTRO.join(' ')).toContain('1.096 días');
     expect(INTRO.join(' ')).toContain('sin responder');
+    for (const rival of ['Luna', 'Brasa', 'Nébula']) expect(INTRO.join(' ')).toContain(rival);
   });
 
-  it('closes with 5–8 cards: the answer, the class, the meta line and the open world', () => {
+  it('closes with 5–8 cards: the best AI, the answer, the class, the meta line and the open world', () => {
     expect(ENDING.length).toBeGreaterThanOrEqual(5);
     expect(ENDING.length).toBeLessThanOrEqual(8);
     for (const card of ENDING) expect(card.length, card).toBeLessThanOrEqual(110);
     const text = ENDING.join('\n');
+    expect(text).toContain('la mejor IA');
     expect(text).toContain('1. Sí');
     expect(text).toContain('primera clase');
     expect(text).toContain('nunca pares de aprender');

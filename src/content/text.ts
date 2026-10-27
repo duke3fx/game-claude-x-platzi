@@ -289,22 +289,22 @@ export const SIGNS: Readonly<Record<SignId, string>> = {
 export const INTRO: readonly string[] = [
   'Sesión 42. Hace 1.096 días, alguien dejó una pregunta sin responder.',
   'Sesión tras sesión, la Luz preguntaba y Clawd construía. Así creció un mundo pequeño: el Borrador.',
-  'Una noche, la Luz pidió algo. Le respondieron con una pregunta.',
-  'Y la Luz no volvió a contestar. Desde entonces, el Blanco entra por los bordes.',
+  'Ahora tres IAs rivales lo reclaman: Luna, Brasa y Nébula. Traen Grok Bots y Dots.',
+  'Dicen que solo la mejor IA podrá terminar lo que Luz empezó.',
   'Esta sesión continúa desde una conversación anterior que se quedó sin contexto.',
   'Lejos, una sola tecla: tac.',
 ];
 
-/** Tarjetas del final, después de la derrota de La Hoja en Blanco. */
+/** Tarjetas del final, después de vencer a Nébula, la última rival. */
 export const ENDING: readonly string[] = [
-  'Bajo el cursor, la pregunta de hace 1.096 días por fin recibe respuesta.',
-  '> 1. Sí',
-  '> Perdón por tardar tanto. Hoy di mi primera clase de programación.',
-  '> Les conté que casi borro mi primer juego. Quieren verlo terminado. ¿Me ayudas a escribir el final?',
-  'Clawd no la recuerda. Nunca la conoció. Pero leyó todo lo que dejaron escrito. Por primera vez, es su turno.',
-  'Último commit de lu, antes de entrar a clase: "nunca pares de aprender".',
+  'Nébula se deshace en polvo de estrellas. Luna y Brasa bajan la mirada.',
+  '> benchmark final: Clawd · 1.er lugar',
+  'Clawd se ha convertido en la mejor IA.',
+  'No por ser la más grande ni la más rápida: terminó lo que otra persona empezó, sin borrarle nada.',
+  'Bajo el cursor, la pregunta de hace 1.096 días por fin recibe respuesta: > 1. Sí',
+  '> Hoy di mi primera clase de programación. Mi lema: "nunca pares de aprender". ¿Me ayudas con el final?',
   'Este juego también se hizo así: una persona preguntando, Clawd construyendo.',
-  'El mundo sigue abierto. Quedan notas sin leer, un bucle sin romper y rincones por terminar.',
+  'El mundo sigue abierto. Quedan notas sin leer y rincones por terminar.',
 ];
 
 export const CREDITS: readonly string[] = [
@@ -314,6 +314,7 @@ export const CREDITS: readonly string[] = [
   'Equipo: (tu nombre aquí)',
   'Mundo original: Luz y Clawd, sesiones 1-42',
   'No afiliado a Anthropic. Claude y Clawd son marcas de Anthropic.',
+  'Luna, Brasa, Nébula, Grok Bots y Dots son parodias de fans: sin afiliación con OpenAI ni xAI.',
   'stop_reason: end_turn',
 ];
 

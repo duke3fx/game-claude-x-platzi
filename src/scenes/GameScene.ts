@@ -2,10 +2,20 @@ import Phaser from 'phaser';
 import { audioDirector } from '../audio/AudioDirector';
 import { CANVAS_SCALE, GAME_HEIGHT, GAME_WIDTH, TILE } from '../config/display';
 import { COLORS, hexToNumber, ZONE_PALETTES, type ZoneId } from '../config/palette';
-import { ATTACK, CAMERA, DASH, HIT_FX, HURT, PLAYER, REST, SPELL, VITALS } from '../config/tuning';
 import {
-  BOSS_DOUBTS,
-  BOSS_LINES,
+  ATTACK,
+  BOSS,
+  CAMERA,
+  DASH,
+  HIT_FX,
+  HURT,
+  PLAYER,
+  REST,
+  SPELL,
+  VITALS,
+} from '../config/tuning';
+import {
+  BOSS_TEXT,
   DANCE_NAMES,
   DESK_LINES,
   NOTE_TEXT,
@@ -18,10 +28,13 @@ import {
 } from '../content/script';
 import { CREDITS, ENDING, INTRO } from '../content/text';
 import {
-  ARENA_GATE_COL,
-  ARENA_TRIGGER_COL,
+  ARENAS,
+  type ArenaDef,
   BENCH_COMMIT,
+  BOSS_ORDER,
   ENTITIES,
+  GATE_BOTTOM_ROW,
+  GATE_TOP_ROW,
   WORLD_ROWS,
   WORLD_TERRAIN,
   type WorldEntity,
@@ -47,7 +60,9 @@ import { TILE_INDEX } from '../gfx/basicArt';
 import { CLAWD_FRAME } from '../gfx/clawdPoses';
 import { NEIGHBOR, TILESET_COLUMNS, TILESET_KEY, tileIndex, ZONE_ORDER } from '../gfx/tiles';
 import { isTouchDevice } from '../input/touchControls';
+import { BossFight } from '../systems/bossFight';
 import { burst, clawSlash, confetti, dust, flashWhite, impactStar } from '../systems/effects';
+import { HazardField } from '../systems/hazards';
 import { SCENES } from './sceneKeys';
 import type { UiScene } from './UiScene';
 
@@ -57,7 +72,7 @@ type Keys = Record<
 >;
 
 interface Enemy {
-  readonly kind: 'garabato' | 'todo';
+  readonly kind: 'grokBot' | 'dots';
   readonly sprite: Phaser.Physics.Arcade.Sprite;
   readonly homeX: number;
   readonly homeY: number;
@@ -75,29 +90,13 @@ interface Pickup {
   readonly sprite: Phaser.GameObjects.Sprite;
 }
 
-interface Hazard {
-  readonly rect: Phaser.Geom.Rectangle;
-  readonly visual: Phaser.GameObjects.GameObject & { destroy: () => void };
-  lifeMs: number;
-  activeAfterMs: number;
-}
-
-type BossMode = 'idle' | 'select' | 'sweep' | 'doubts' | 'dead';
-
-const GARABATO_SPEED = 35;
-const GARABATO_HP = 2;
-const TODO_HP = 1;
-const TODO_TRIGGER_RANGE = 90;
-const TODO_WARN_MS = 550;
-const TODO_DIVE_MS = 650;
-const TODO_DIVE_SPEED = 140;
-const BOSS_HP = 14;
-const BOSS_IDLE_MS = 1300;
-const BOSS_SELECT_WARN_MS = 800;
-const BOSS_SELECT_ACTIVE_MS = 1200;
-const BOSS_SWEEP_WARN_MS = 550;
-const BOSS_SWEEP_SPEED = 230;
-const BOSS_PHASE2_SPEEDUP = 0.7;
+const GROK_BOT_SPEED = 35;
+const GROK_BOT_HP = 2;
+const DOTS_HP = 1;
+const DOTS_TRIGGER_RANGE = 90;
+const DOTS_WARN_MS = 550;
+const DOTS_DIVE_MS = 650;
+const DOTS_DIVE_SPEED = 140;
 const INTERACT_RANGE = 28;
 const RESPAWN_DELAY_MS = 1300;
 const ENEMY_KNOCKBACK = 120;
@@ -131,7 +130,7 @@ const POSE_FRAME: Readonly<Record<DanceBodyPose, number>> = {
   waveRight: CLAWD_FRAME.waveRight,
   back: CLAWD_FRAME.back,
 };
-const GARABATO_HIT_HOP = 90;
+const GROK_BOT_HIT_HOP = 90;
 const ENEMY_DISSOLVE_MS = 220;
 const STEAM_INTERVAL_MS = 450;
 /** Story ending, then credits (with the legal line), then the open-world card. */
@@ -171,13 +170,10 @@ export class GameScene extends Phaser.Scene {
   private zone: ZoneId = 'sandbox';
   private tildeLine = 0;
   private tildeMs = 0;
-  private boss!: Phaser.GameObjects.Image;
-  private bossHp = BOSS_HP;
-  private bossActive = false;
-  private bossMode: BossMode = 'idle';
-  private bossModeMs = 0;
-  private bossFlashMs = 0;
-  private hazards: Hazard[] = [];
+  private field!: HazardField;
+  /** The rival being fought, and its arena. */
+  private fight: BossFight | null = null;
+  private fightArena: ArenaDef | null = null;
   private ambience: Partial<Record<ZoneId, Phaser.GameObjects.Particles.ParticleEmitter>> = {};
   private halo!: Phaser.GameObjects.Image;
   /** Visual-only Clawd; the physics sprite is invisible so squash/stretch never affects collisions. */
@@ -208,6 +204,7 @@ export class GameScene extends Phaser.Scene {
     this.save = this.store.load() ?? createDefaultSave('start');
     this.vitals = new Vitals(VITALS);
     this.buildWorld();
+    this.field = new HazardField(this, (x, y) => this.layer.getTileAtWorldXY(x, y) !== null);
     this.spawnEntities();
     this.setupCamera();
     this.setupInput();
@@ -454,8 +451,8 @@ export class GameScene extends Phaser.Scene {
         case 'player':
           this.spawnPlayer(x, y);
           break;
-        case 'garabato':
-        case 'todo':
+        case 'grokBot':
+        case 'dots':
           this.spawnEnemy(entity.kind, x, y);
           break;
         case 'note':
@@ -493,11 +490,6 @@ export class GameScene extends Phaser.Scene {
             .setDepth(0);
           this.props.push({ entity, sprite: this.add.sprite(x, y - 12, 'desk', 0).setDepth(1) });
           break;
-        case 'boss':
-          this.boss = this.add.image(x, y, 'blankPage', 0).setDepth(3);
-          this.tweens.add({ targets: this.boss, angle: 2, duration: 1600, yoyo: true, repeat: -1 });
-          if (this.save.finishedStory) this.boss.setVisible(false);
-          break;
         default:
           break;
       }
@@ -523,13 +515,17 @@ export class GameScene extends Phaser.Scene {
     const sprite = this.physics.add.sprite(x, y - 8, kind, 0).setDepth(4);
     const body = sprite.body as Phaser.Physics.Arcade.Body;
     let label: Phaser.GameObjects.Text | null = null;
-    if (kind === 'garabato') {
+    if (kind === 'grokBot') {
       body.setGravityY(PLAYER.gravity);
       this.physics.add.collider(sprite, this.layer);
     } else {
       body.setAllowGravity(false);
       label = this.add
-        .text(x, y - 24, 'TODO', { fontFamily: 'monospace', fontSize: '8px', color: COLORS.oat })
+        .text(x, y - 24, UI_TEXT.dotsTyping, {
+          fontFamily: 'monospace',
+          fontSize: '7px',
+          color: COLORS.oat,
+        })
         .setOrigin(0.5)
         .setResolution(CANVAS_SCALE)
         .setDepth(4);
@@ -540,7 +536,7 @@ export class GameScene extends Phaser.Scene {
       homeX: x,
       homeY: y - 8,
       label,
-      hp: kind === 'garabato' ? GARABATO_HP : TODO_HP,
+      hp: kind === 'grokBot' ? GROK_BOT_HP : DOTS_HP,
       dir: -1,
       t: x,
       mode: 'hover',
@@ -623,8 +619,8 @@ export class GameScene extends Phaser.Scene {
     if (!this.dead) this.updatePlayer(dt);
     this.updateEnemies(dt);
     this.updateSparks(dt);
-    if (this.bossActive) this.updateBoss(dt);
-    this.updateHazards(dt);
+    if (this.fight) this.updateBoss(dt);
+    this.field.update(dt);
     if (!this.dead) {
       this.checkContacts();
       this.checkInteractions(dt);
@@ -875,15 +871,14 @@ export class GameScene extends Phaser.Scene {
         hitSomething = true;
       }
     }
-    if (
-      this.bossActive &&
-      this.bossHp > 0 &&
-      Phaser.Geom.Rectangle.Overlaps(rect, this.boss.getBounds())
-    ) {
-      this.damageBoss();
-      const bounds = this.boss.getBounds();
-      impactStar(this, (rect.centerX + bounds.centerX) / 2, rect.centerY);
-      hitSomething = true;
+    const fight = this.fight;
+    if (fight && !fight.defeated) {
+      const bounds = fight.sprite.getBounds();
+      if (Phaser.Geom.Rectangle.Overlaps(rect, bounds)) {
+        impactStar(this, (rect.centerX + bounds.centerX) / 2, rect.centerY);
+        this.damageBoss(ATTACK.damage, true);
+        hitSomething = true;
+      }
     }
     if (down && this.spikeInRect(rect)) hitSomething = true;
     if (hitSomething) {
@@ -911,7 +906,7 @@ export class GameScene extends Phaser.Scene {
     if (gainContext) this.vitals.registerHit();
     const body = enemy.sprite.body as Phaser.Physics.Arcade.Body;
     body.setVelocityX(Math.sign(enemy.sprite.x - this.player.x || 1) * ENEMY_KNOCKBACK);
-    if (enemy.kind === 'garabato') body.setVelocityY(-GARABATO_HIT_HOP);
+    if (enemy.kind === 'grokBot') body.setVelocityY(-GROK_BOT_HIT_HOP);
     if (enemy.hp <= 0) this.killEnemy(enemy);
   }
 
@@ -931,7 +926,7 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => enemy.sprite.setVisible(false),
     });
     if (enemy.label) {
-      enemy.label.setText('// HECHO');
+      enemy.label.setText(UI_TEXT.dotsDone);
       this.tweens.add({ targets: enemy.label, alpha: 0, y: enemy.label.y - 10, duration: 900 });
     }
   }
@@ -942,12 +937,12 @@ export class GameScene extends Phaser.Scene {
       enemy.flashMs = Math.max(0, enemy.flashMs - dt);
 
       enemy.t += dt;
-      if (enemy.kind === 'garabato') this.updateGarabato(enemy);
-      else this.updateTodo(enemy, dt);
+      if (enemy.kind === 'grokBot') this.updateGrokBot(enemy);
+      else this.updateDots(enemy, dt);
     }
   }
 
-  private updateGarabato(enemy: Enemy): void {
+  private updateGrokBot(enemy: Enemy): void {
     const body = enemy.sprite.body as Phaser.Physics.Arcade.Body;
     if (enemy.flashMs > 0) return;
     if (body.blocked.left) enemy.dir = 1;
@@ -955,12 +950,13 @@ export class GameScene extends Phaser.Scene {
     const aheadX = enemy.sprite.x + enemy.dir * 10;
     const below = this.layer.getTileAtWorldXY(aheadX, enemy.sprite.y + 12);
     if (body.blocked.down && !below) enemy.dir *= -1;
-    body.setVelocityX(enemy.dir * GARABATO_SPEED);
-    enemy.sprite.setFlipX(enemy.dir > 0);
-    enemy.sprite.setFrame(enemy.flashMs > 0 ? 2 : Math.floor(enemy.t / 180) % 2);
+    body.setVelocityX(enemy.dir * GROK_BOT_SPEED);
+    // Rival art faces right.
+    enemy.sprite.setFlipX(enemy.dir < 0);
+    enemy.sprite.setFrame(Math.floor(enemy.t / 180) % 2);
   }
 
-  private updateTodo(enemy: Enemy, dt: number): void {
+  private updateDots(enemy: Enemy, dt: number): void {
     const body = enemy.sprite.body as Phaser.Physics.Arcade.Body;
     enemy.modeMs += dt;
     enemy.sprite.setFrame(enemy.mode === 'dive' ? 2 : Math.floor(enemy.t / 90) % 2);
@@ -974,22 +970,22 @@ export class GameScene extends Phaser.Scene {
           enemy.homeX + Math.sin(enemy.t / 600) * 18,
           enemy.homeY + Math.sin(enemy.t / 300) * 6,
         );
-        if (dist < TODO_TRIGGER_RANGE && !this.dead) {
+        if (dist < DOTS_TRIGGER_RANGE && !this.dead) {
           enemy.mode = 'warn';
           enemy.modeMs = 0;
-          enemy.label?.setText('AHORA').setColor(COLORS.danger);
+          enemy.label?.setText(UI_TEXT.dotsAlert).setColor(COLORS.danger);
         }
         break;
       case 'warn':
         body.setVelocity(0, 0);
-        if (enemy.modeMs >= TODO_WARN_MS) {
+        if (enemy.modeMs >= DOTS_WARN_MS) {
           enemy.mode = 'dive';
           enemy.modeMs = 0;
-          body.setVelocity((dx / dist) * TODO_DIVE_SPEED, (dy / dist) * TODO_DIVE_SPEED);
+          body.setVelocity((dx / dist) * DOTS_DIVE_SPEED, (dy / dist) * DOTS_DIVE_SPEED);
         }
         break;
       case 'dive':
-        if (enemy.modeMs >= TODO_DIVE_MS) {
+        if (enemy.modeMs >= DOTS_DIVE_MS) {
           enemy.mode = 'return';
           enemy.modeMs = 0;
         }
@@ -1001,7 +997,7 @@ export class GameScene extends Phaser.Scene {
         if (hd < 4) {
           enemy.mode = 'hover';
           enemy.t = 0;
-          enemy.label?.setText('TODO').setColor(COLORS.oat);
+          enemy.label?.setText(UI_TEXT.dotsTyping).setColor(COLORS.oat);
         } else body.setVelocity((hx / hd) * 80, (hy / hd) * 80);
         break;
       }
@@ -1011,173 +1007,107 @@ export class GameScene extends Phaser.Scene {
     enemy.label?.setPosition(enemy.sprite.x, enemy.sprite.y - 12);
   }
 
-  // ---------------------------------------------------------------- boss
+  // ---------------------------------------------------------------- rivals
 
-  private startBoss(): void {
-    this.bossActive = true;
-    this.bossHp = BOSS_HP;
-    this.bossMode = 'idle';
-    this.bossModeMs = 0;
-    for (let row = 11; row <= 16; row++) this.layer.putTileAt(ERASED_TILE, ARENA_GATE_COL, row);
+  private isBeaten(arena: ArenaDef): boolean {
+    return this.save.flags.includes(`boss:${arena.boss}`);
+  }
+
+  /** Puts (or removes) the gate tiles that close an arena. */
+  private setGates(arena: ArenaDef, closed: boolean): void {
+    for (const col of [arena.gateLeft, arena.gateRight]) {
+      if (col === null) continue;
+      for (let row = GATE_TOP_ROW; row <= GATE_BOTTOM_ROW; row++) {
+        if (closed) this.layer.putTileAt(ERASED_TILE, col, row);
+        else this.layer.removeTileAt(col, row);
+      }
+    }
     this.layer.setCollisionByExclusion([-1]);
-    this.ui.toast(BOSS_LINES.intro, 3500);
+  }
+
+  private startBoss(arena: ArenaDef): void {
+    const text = BOSS_TEXT[arena.boss];
+    this.fightArena = arena;
+    this.fight = new BossFight(this, arena, this.field, () => ({
+      x: this.player.x,
+      y: this.player.y,
+    }));
+    this.setGates(arena, true);
+    this.stopDance();
+    this.ui.bossTitle(text.name, text.epithet);
+    this.ui.toast(text.intro, 3500);
     audioDirector.playMusic('boss');
   }
 
+  /** The player fell: the rival leaves and the arena opens until the next attempt. */
   private resetBoss(): void {
-    this.bossActive = false;
-    this.bossHp = BOSS_HP;
-    for (let row = 11; row <= 16; row++) this.layer.removeTileAt(ARENA_GATE_COL, row);
-    for (const hazard of this.hazards) hazard.visual.destroy();
-    this.hazards = [];
+    this.fight?.destroy();
+    this.field.clear();
+    if (this.fightArena) this.setGates(this.fightArena, false);
+    this.fight = null;
+    this.fightArena = null;
     this.ui.setBoss(null);
-    this.boss.setFrame(0);
     audioDirector.playMusic(this.zone);
   }
 
-  private get bossPhase2(): boolean {
-    return this.bossHp <= BOSS_HP / 2;
-  }
-
   private updateBoss(dt: number): void {
-    if (this.bossMode === 'dead') return;
-    const speed = this.bossPhase2 ? BOSS_PHASE2_SPEEDUP : 1;
-    this.bossModeMs += dt;
-    this.bossFlashMs = Math.max(0, this.bossFlashMs - dt);
-
-    const targetX = Phaser.Math.Clamp(this.player.x, (ARENA_GATE_COL + 4) * TILE, 154 * TILE);
-    this.boss.x = approach(this.boss.x, targetX, 40 * (dt / 1000));
-    this.boss.y = 10.5 * TILE + Math.sin(this.time.now / 700) * 8;
-    this.ui.setBoss(this.bossHp / BOSS_HP);
-
-    if (this.bossMode === 'idle' && this.bossModeMs >= BOSS_IDLE_MS * speed) {
-      const next: BossMode[] = this.bossPhase2
-        ? ['select', 'sweep', 'doubts']
-        : ['select', 'sweep'];
-      this.bossMode = next[Math.floor(this.time.now / 1000) % next.length] ?? 'select';
-      this.bossModeMs = 0;
-      if (this.bossMode === 'select') this.spawnSelection(speed);
-      if (this.bossMode === 'sweep') this.spawnSweep();
-      if (this.bossMode === 'doubts') this.spawnDoubts();
-      this.boss.setFrame(1);
-    } else if (this.bossMode !== 'idle' && this.bossModeMs >= 1600 * speed) {
-      this.bossMode = 'idle';
-      this.bossModeMs = 0;
-      this.boss.setFrame(0);
+    const fight = this.fight;
+    if (!fight || fight.defeated) return;
+    fight.update(dt);
+    this.ui.setBoss(fight.hp / fight.maxHp, BOSS_TEXT[fight.id].name);
+    // Nébula's black hole drags Clawd toward it (dashing breaks free).
+    const pull = fight.pull;
+    if (pull && !this.dead && this.dashMs <= 0) {
+      const dx = pull.x - this.player.x;
+      if (Math.abs(dx) > 2) this.player.x += Math.sign(dx) * pull.speed * (dt / 1000);
     }
   }
 
-  private spawnSelection(speed: number): void {
-    const width = 72;
-    const rect = new Phaser.Geom.Rectangle(this.player.x - width / 2, 12 * TILE, width, 5 * TILE);
-    const visual = this.add
-      .rectangle(rect.centerX, rect.centerY, rect.width, rect.height)
-      .setDepth(6);
-    visual.setStrokeStyle(2, hexToNumber(COLORS.danger));
-    this.tweens.add({ targets: visual, alpha: 0.4, duration: 120, yoyo: true, repeat: 4 });
-    this.time.delayedCall(BOSS_SELECT_WARN_MS * speed, () =>
-      visual.setFillStyle(hexToNumber(COLORS.erased), 0.85),
-    );
-    this.hazards.push({
-      rect,
-      visual,
-      lifeMs: (BOSS_SELECT_WARN_MS + BOSS_SELECT_ACTIVE_MS) * speed,
-      activeAfterMs: BOSS_SELECT_WARN_MS * speed,
-    });
-  }
-
-  private spawnSweep(): void {
-    const fromLeft = this.player.x > this.boss.x;
-    const startX = fromLeft ? (ARENA_GATE_COL + 1) * TILE : 157 * TILE;
-    const visual = this.add.image(startX, 17 * TILE - 5, 'eraser').setDepth(6);
-    const rect = new Phaser.Geom.Rectangle(startX - 14, 17 * TILE - 10, 28, 10);
-    const hazard: Hazard = { rect, visual, lifeMs: 6000, activeAfterMs: BOSS_SWEEP_WARN_MS };
-    this.hazards.push(hazard);
-    audioDirector.playSfx('erase');
-    this.tweens.add({
-      targets: visual,
-      x: fromLeft ? 157 * TILE : (ARENA_GATE_COL + 1) * TILE,
-      delay: BOSS_SWEEP_WARN_MS,
-      duration: ((157 - ARENA_GATE_COL) * TILE * 1000) / BOSS_SWEEP_SPEED,
-      onUpdate: () => rect.setPosition(visual.x - 14, visual.y - 5),
-      onComplete: () => {
-        hazard.lifeMs = 0;
-      },
-    });
-  }
-
-  private spawnDoubts(): void {
-    for (let i = 0; i < 3; i++) {
-      const x = this.player.x + (i - 1) * 56;
-      const text = BOSS_DOUBTS[(Math.floor(this.time.now / 100) + i) % BOSS_DOUBTS.length] ?? '';
-      const visual = this.add
-        .text(x, 2 * TILE, text, {
-          fontFamily: 'monospace',
-          fontSize: '8px',
-          color: COLORS.cloudDark,
-        })
-        .setOrigin(0.5)
-        .setResolution(CANVAS_SCALE)
-        .setDepth(6);
-      const rect = new Phaser.Geom.Rectangle(x - 20, 2 * TILE, 40, 8);
-      const hazard: Hazard = { rect, visual, lifeMs: 2400, activeAfterMs: 500 };
-      this.hazards.push(hazard);
-      this.tweens.add({
-        targets: visual,
-        y: 17 * TILE,
-        delay: 500 + i * 150,
-        duration: 1500,
-        onUpdate: () => rect.setPosition(visual.x - 20, visual.y - 4),
-      });
-    }
-  }
-
-  private damageBoss(damage: number = ATTACK.damage, gainContext = true): void {
-    const before = this.bossHp;
-    this.bossHp -= damage;
-    this.bossFlashMs = 100;
-    audioDirector.playSfx('bossHit');
-    flashWhite(this, this.boss);
-    burst(this, this.boss.x, this.boss.y + 20, COLORS.ink, 8);
+  private damageBoss(damage: number, gainContext: boolean): void {
+    const fight = this.fight;
+    if (!fight || fight.defeated) return;
     if (gainContext) this.vitals.registerHit();
-    if (before > BOSS_HP / 2 && this.bossHp <= BOSS_HP / 2) {
-      this.ui.toast(BOSS_LINES.phase2, 3500);
+    audioDirector.playSfx('bossHit');
+    const result = fight.damage(damage);
+    if (result === 'phase2') {
+      this.ui.toast(BOSS_TEXT[fight.id].phase2, 3500);
       audioDirector.playSfx('bossPhase');
+      this.cameras.main.shake(200, 0.004);
     }
-    if (this.bossHp <= 0) this.defeatBoss();
+    if (result === 'defeated') this.defeatBoss(fight);
   }
 
-  private defeatBoss(): void {
-    this.bossMode = 'dead';
+  private defeatBoss(fight: BossFight): void {
+    const arena = this.fightArena;
+    fight.defeat();
+    this.field.clear();
     this.ui.setBoss(null);
-    for (const hazard of this.hazards) hazard.visual.destroy();
-    this.hazards = [];
-    this.ui.toast(BOSS_LINES.defeat, 3000);
     audioDirector.playSfx('bossDefeat');
-    audioDirector.playMusic('ending');
-    this.tweens.add({ targets: this.boss, alpha: 0, scale: 1.4, duration: 2200 });
-    this.time.delayedCall(2600, () => {
-      this.ui.playCards(ENDING_SEQUENCE, () => this.openWorld());
+    const text = BOSS_TEXT[fight.id];
+    this.ui.toast(text.defeat, 3000);
+    this.persist({ flags: [...this.save.flags, `boss:${fight.id}`] });
+    const beaten = BOSS_ORDER.filter((id) => this.save.flags.includes(`boss:${id}`)).length;
+    const isFinal = beaten >= BOSS_ORDER.length;
+    if (isFinal) audioDirector.playMusic('ending');
+    this.time.delayedCall(BOSS.defeatMs + 400, () => {
+      this.fight = null;
+      this.fightArena = null;
+      if (arena) this.setGates(arena, false);
+      if (isFinal) {
+        this.ui.playCards(ENDING_SEQUENCE, () => this.openWorld());
+        return;
+      }
+      this.vitals.restore();
+      this.ui.toast(UI_TEXT.rivalBeaten(text.name, beaten, BOSS_ORDER.length), 3000);
+      audioDirector.playMusic(this.zone);
     });
   }
 
   private openWorld(): void {
-    this.bossActive = false;
-    this.boss.setVisible(false);
-    for (let row = 11; row <= 16; row++) this.layer.removeTileAt(ARENA_GATE_COL, row);
     for (const cell of this.erasedCells) this.layer.removeTileAt(cell.col, cell.row);
     this.persist({ finishedStory: true });
     audioDirector.playMusic(this.zone);
     this.ui.toast(UI_TEXT.notes(this.save.notes.length, this.totalNotes()), 4000);
-  }
-
-  private updateHazards(dt: number): void {
-    for (const hazard of this.hazards) {
-      hazard.lifeMs -= dt;
-      hazard.activeAfterMs -= dt;
-      if (hazard.lifeMs <= 0) hazard.visual.destroy();
-    }
-    this.hazards = this.hazards.filter((h) => h.lifeMs > 0);
   }
 
   // ---------------------------------------------------------------- contacts
@@ -1208,13 +1138,9 @@ export class GameScene extends Phaser.Scene {
         return;
       }
     }
-    // The boss's body is harmless: only its attacks (selection, eraser, doubts) hurt.
-    for (const hazard of this.hazards) {
-      if (hazard.activeAfterMs <= 0 && Phaser.Geom.Rectangle.Overlaps(playerRect, hazard.rect)) {
-        this.hurt(hazard.rect.centerX);
-        return;
-      }
-    }
+    // A rival's body is harmless: only its attacks hurt.
+    const hazard = this.field.hit(playerRect);
+    if (hazard) this.hurt(hazard.x);
   }
 
   private hurt(fromX: number): void {
@@ -1242,7 +1168,7 @@ export class GameScene extends Phaser.Scene {
     this.view.setVisible(false);
     burst(this, this.player.x, this.player.y, COLORS.clawdBody, 16);
     this.time.delayedCall(RESPAWN_DELAY_MS, () => {
-      if (this.bossActive) this.resetBoss();
+      if (this.fight) this.resetBoss();
       const checkpoint = this.checkpointPosition(this.save.checkpointId);
       this.player.setPosition(checkpoint.x, checkpoint.y);
       this.view.setVisible(true);
@@ -1258,7 +1184,8 @@ export class GameScene extends Phaser.Scene {
     const py = this.player.y;
     let hint = '';
     for (const pickup of this.pickups) {
-      if (!pickup.sprite.visible) continue;
+      // Reading a note pauses the game, so notes wait until the fight is over.
+      if (!pickup.sprite.visible || this.fight) continue;
       if (
         Phaser.Math.Distance.Between(px, py, pickup.sprite.x, pickup.sprite.y) <
         INTERACT_RANGE * 0.7
@@ -1307,8 +1234,12 @@ export class GameScene extends Phaser.Scene {
         prop.sprite.setFrame(this.isActiveCommit(prop.entity.id) ? 1 : 0);
     }
     this.ui.setHint(hint);
-    if (!this.bossActive && !this.save.finishedStory && px > ARENA_TRIGGER_COL * TILE)
-      this.startBoss();
+    if (!this.fight) {
+      const arena = ARENAS.find(
+        (a) => !this.isBeaten(a) && px > a.triggerCol * TILE && px < (a.right + 1) * TILE,
+      );
+      if (arena) this.startBoss(arena);
+    }
   }
 
   private tildeHint(dt: number): string {
@@ -1329,7 +1260,7 @@ export class GameScene extends Phaser.Scene {
     for (const [id, emitter] of Object.entries(this.ambience)) emitter.emitting = id === zone;
     this.showZoneDecor(zone);
     this.ui.zoneTitle(UI_TEXT.zoneNames[zone]);
-    if (!this.bossActive) audioDirector.playMusic(zone);
+    if (!this.fight) audioDirector.playMusic(zone);
   }
 
   private refreshHud(): void {
@@ -1374,14 +1305,15 @@ export class GameScene extends Phaser.Scene {
         impactStar(this, spark.x, spark.y);
         audioDirector.playSfx('hit');
       }
+      const fight = this.fight;
       const bossHit =
-        this.bossActive &&
-        this.bossHp > 0 &&
-        Phaser.Geom.Rectangle.Overlaps(spark.bounds, this.boss.getBounds()) &&
-        spark.registerHit(this.boss);
+        fight !== null &&
+        !fight.defeated &&
+        Phaser.Geom.Rectangle.Overlaps(spark.bounds, fight.sprite.getBounds()) &&
+        spark.registerHit(fight);
       if (bossHit) {
-        this.damageBoss(SPELL.damage, false);
         impactStar(this, spark.x, spark.y);
+        this.damageBoss(SPELL.damage, false);
       }
       return true;
     });

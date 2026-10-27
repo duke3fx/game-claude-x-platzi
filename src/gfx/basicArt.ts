@@ -2,16 +2,8 @@ import type Phaser from 'phaser';
 import { TILE } from '../config/display';
 import { COLORS, ZONE_PALETTES } from '../config/palette';
 import { bakeSprite, type PixelSprite } from './pixelArt';
-import {
-  BLANK_PAGE,
-  COMMIT as COMMIT_ART,
-  ERASER as ERASER_ART,
-  GARABATO as GARABATO_ART,
-  LUZ_DESK,
-  NOTE as NOTE_ART,
-  TILDE as TILDE_ART,
-  TODO_BUG as TODO_ART,
-} from './sprites';
+import { RIVAL_SPRITES } from './rivals';
+import { COMMIT as COMMIT_ART, LUZ_DESK, NOTE as NOTE_ART, TILDE as TILDE_ART } from './sprites';
 
 /** Minimal code-drawn art used by the first playable build. */
 export const TILE_INDEX = { sandbox: 0, library: 1, margin: 2, bridge: 3, erased: 4 } as const;
@@ -152,16 +144,14 @@ const FOG_HEIGHT = 48;
 const PAGE_HEIGHT = 80;
 
 export function bakeBasicArt(textures: Phaser.Textures.TextureManager): void {
-  bakeSprite(textures, 'garabato', GARABATO_ART);
-  bakeSprite(textures, 'todo', TODO_ART);
   bakeSprite(textures, 'note', NOTE_ART);
   bakeSprite(textures, 'commit', COMMIT_ART);
   bakeSprite(textures, 'tilde', TILDE_ART);
   bakeSprite(textures, 'desk', LUZ_DESK);
   bakeSprite(textures, 'sign', SIGN);
   bakeSprite(textures, 'bench', BENCH);
-  bakeSprite(textures, 'eraser', ERASER_ART);
-  bakeSprite(textures, 'blankPage', BLANK_PAGE);
+  // Rival AIs, their minions and their projectiles; the texture key is the sprite's name.
+  for (const [key, sprite] of Object.entries(RIVAL_SPRITES)) bakeSprite(textures, key, sprite);
   drawCanvas(textures, 'tilesBasic', TILE * 5, TILE, drawTiles);
   drawCanvas(textures, 'page', PAGE_WIDTH, PAGE_HEIGHT, (ctx) =>
     drawPage(ctx, PAGE_WIDTH, PAGE_HEIGHT, false),

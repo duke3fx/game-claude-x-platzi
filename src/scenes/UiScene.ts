@@ -43,6 +43,10 @@ export class UiScene extends Phaser.Scene {
   private toastTimer: Phaser.Time.TimerEvent | null = null;
   private zoneCard!: Phaser.GameObjects.Container;
   private zoneText!: Phaser.GameObjects.Text;
+  private bossName!: Phaser.GameObjects.Text;
+  private bossCard!: Phaser.GameObjects.Container;
+  private bossCardName!: Phaser.GameObjects.Text;
+  private bossCardEpithet!: Phaser.GameObjects.Text;
   private prevTokens = -1;
   private tokenFx: TokenFx[] = [];
   panelOpen = false;
@@ -56,6 +60,10 @@ export class UiScene extends Phaser.Scene {
     this.cameras.main.setZoom(UI_ZOOM).centerOn(W / 2, H / 2);
     this.hud = this.add.graphics();
     this.bossBar = this.add.graphics();
+    this.bossName = this.add
+      .text(W / 2, H - 36, '', { ...this.style(18, COLORS.ivory), fontFamily: SERIF })
+      .setOrigin(0.5, 1)
+      .setVisible(false);
     this.notesText = this.add
       .text(W - 24, 22, '', this.style(18, COLORS.cloudLight))
       .setOrigin(1, 0);
@@ -75,6 +83,18 @@ export class UiScene extends Phaser.Scene {
     this.drawOrnament(ornament, W / 2, 110, 260);
     this.drawOrnament(ornament, W / 2, 192, 200);
     this.zoneCard = this.add.container(0, 0, [ornament, this.zoneText]).setAlpha(0);
+
+    this.bossCardEpithet = this.add
+      .text(W / 2, H - 150, '', { ...this.style(20, COLORS.cloudLight), fontFamily: SERIF })
+      .setOrigin(0.5);
+    this.bossCardName = this.add
+      .text(W / 2, H - 112, '', { ...this.style(48, COLORS.ivory), fontFamily: SERIF })
+      .setOrigin(0.5);
+    const bossOrnament = this.add.graphics();
+    this.drawOrnament(bossOrnament, W / 2, H - 78, 300);
+    this.bossCard = this.add
+      .container(0, 0, [this.bossCardEpithet, this.bossCardName, bossOrnament])
+      .setAlpha(0);
 
     const box = this.add
       .rectangle(W / 2, H / 2, W - 220, 260, hexToNumber(COLORS.nearBlack), 0.94)
@@ -114,6 +134,21 @@ export class UiScene extends Phaser.Scene {
     g.fillStyle(hexToNumber(COLORS.ivory));
     g.fillCircle(x - width / 2, y, 3);
     g.fillCircle(x + width / 2, y, 3);
+  }
+
+  /** Hollow-Knight-style boss card: small epithet over a big name, low on the screen. */
+  bossTitle(name: string, epithet: string): void {
+    this.bossCardEpithet.setText(epithet);
+    this.bossCardName.setText(name.toUpperCase().split('').join(' '));
+    this.tweens.killTweensOf(this.bossCard);
+    this.bossCard.setAlpha(0);
+    this.tweens.add({
+      targets: this.bossCard,
+      alpha: 1,
+      duration: 700,
+      hold: ZONE_TITLE_HOLD_MS,
+      yoyo: true,
+    });
   }
 
   /** Area title card that fades in and out when entering a zone. */
@@ -251,9 +286,10 @@ export class UiScene extends Phaser.Scene {
     this.panelOpen = false;
   }
 
-  setBoss(ratio: number | null): void {
+  setBoss(ratio: number | null, name = ''): void {
     const g = this.bossBar;
     g.clear();
+    this.bossName.setVisible(ratio !== null).setText(name);
     if (ratio === null) return;
     const width = 420;
     g.fillStyle(hexToNumber(COLORS.ink), 0.8);
