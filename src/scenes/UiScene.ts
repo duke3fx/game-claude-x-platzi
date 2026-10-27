@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { CANVAS_SCALE, GAME_HEIGHT, GAME_WIDTH } from '../config/display';
+import { GAME_HEIGHT, GAME_WIDTH, UI_ZOOM } from '../config/display';
 import { COLORS, hexToNumber } from '../config/palette';
 import { SCENES } from './sceneKeys';
 
-const W = GAME_WIDTH * CANVAS_SCALE;
-const H = GAME_HEIGHT * CANVAS_SCALE;
+/** UI layout space (960x540); the camera zooms it to the full canvas. */
+const W = GAME_WIDTH * UI_ZOOM;
+const H = GAME_HEIGHT * UI_ZOOM;
 const FONT = 'ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace';
 const SERIF = '"Cinzel", Georgia, "Times New Roman", serif';
 const ZONE_TITLE_HOLD_MS = 2200;
@@ -33,6 +34,7 @@ export class UiScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.cameras.main.setZoom(UI_ZOOM).centerOn(W / 2, H / 2);
     this.hud = this.add.graphics();
     this.bossBar = this.add.graphics();
     this.notesText = this.add
@@ -110,7 +112,7 @@ export class UiScene extends Phaser.Scene {
   }
 
   private style(size: number, color: string): Phaser.Types.GameObjects.Text.TextStyle {
-    return { fontFamily: FONT, fontSize: `${size}px`, color };
+    return { fontFamily: FONT, fontSize: `${size}px`, color, resolution: UI_ZOOM };
   }
 
   setHud(tokens: number, maxTokens: number, context: number, maxContext: number): void {

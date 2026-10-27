@@ -142,7 +142,7 @@ export function bakeBasicArt(textures: Phaser.Textures.TextureManager): void {
   bakeSprite(textures, 'sign', SIGN);
   bakeSprite(textures, 'eraser', ERASER_ART);
   bakeSprite(textures, 'blankPage', BLANK_PAGE);
-  drawCanvas(textures, 'tiles', TILE * 5, TILE, drawTiles);
+  drawCanvas(textures, 'tilesBasic', TILE * 5, TILE, drawTiles);
   drawCanvas(textures, 'page', PAGE_WIDTH, PAGE_HEIGHT, (ctx) =>
     drawPage(ctx, PAGE_WIDTH, PAGE_HEIGHT, false),
   );

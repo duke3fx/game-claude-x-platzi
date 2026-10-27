@@ -27,6 +27,7 @@ import { JumpAssist } from '../core/jumpAssist';
 import { createDefaultSave, type SaveData, SaveStore } from '../core/save';
 import { Vitals } from '../core/vitals';
 import { TILE_INDEX } from '../gfx/basicArt';
+import { NEIGHBOR, TILESET_COLUMNS, TILESET_KEY, tileIndex, ZONE_ORDER } from '../gfx/tiles';
 import { SCENES } from './sceneKeys';
 import type { UiScene } from './UiScene';
 
@@ -77,15 +78,15 @@ interface Hazard {
 type BossMode = 'idle' | 'select' | 'sweep' | 'doubts' | 'dead';
 
 const GARABATO_SPEED = 35;
-const GARABATO_HP = 3;
-const TODO_HP = 2;
+const GARABATO_HP = 2;
+const TODO_HP = 1;
 const TODO_TRIGGER_RANGE = 90;
-const TODO_WARN_MS = 400;
+const TODO_WARN_MS = 550;
 const TODO_DIVE_MS = 650;
-const TODO_DIVE_SPEED = 170;
-const BOSS_HP = 24;
+const TODO_DIVE_SPEED = 140;
+const BOSS_HP = 14;
 const BOSS_IDLE_MS = 1300;
-const BOSS_SELECT_WARN_MS = 650;
+const BOSS_SELECT_WARN_MS = 800;
 const BOSS_SELECT_ACTIVE_MS = 1200;
 const BOSS_SWEEP_WARN_MS = 550;
 const BOSS_SWEEP_SPEED = 230;
@@ -93,6 +94,10 @@ const BOSS_PHASE2_SPEEDUP = 0.7;
 const INTERACT_RANGE = 28;
 const RESPAWN_DELAY_MS = 1300;
 const ENEMY_KNOCKBACK = 120;
+/** First tile id of the small extra tileset (bridge, erased wall) after the autotile sheet. */
+const EXTRA_GID = TILESET_COLUMNS * ZONE_ORDER.length;
+const BRIDGE_TILE = EXTRA_GID + TILE_INDEX.bridge;
+const ERASED_TILE = EXTRA_GID + TILE_INDEX.erased;
 /** Story ending, then credits (with the legal line), then the open-world card. */
 const ENDING_SEQUENCE: readonly string[] = [
   ...ENDING.slice(0, -1),
@@ -186,25 +191,38 @@ export class GameScene extends Phaser.Scene {
   // ---------------------------------------------------------------- world
 
   private buildWorld(): void {
+    const solidAt = (col: number, row: number): boolean => {
+      const char = WORLD_TERRAIN[row]?.[col];
+      // Outside the map counts as solid so border tiles don't draw exposed edges.
+      return char === undefined ? true : char === '#';
+    };
     const data = WORLD_TERRAIN.map((line, row) =>
       [...line].map((char, col) => {
-        if (char === '#') return TILE_INDEX[zoneAtCol(col)];
+        if (char === '#') {
+          let mask = 0;
+          if (solidAt(col, row - 1)) mask |= NEIGHBOR.up;
+          if (solidAt(col + 1, row)) mask |= NEIGHBOR.right;
+          if (solidAt(col, row + 1)) mask |= NEIGHBOR.down;
+          if (solidAt(col - 1, row)) mask |= NEIGHBOR.left;
+          return tileIndex(zoneAtCol(col), mask);
+        }
         if (char === '^') this.spikes.add(`${col},${row}`);
         if (char === 'B') {
           this.bridgeCells.push({ col, row });
-          return this.hasAbility() ? TILE_INDEX.bridge : -1;
+          return this.hasAbility() ? BRIDGE_TILE : -1;
         }
         if (char === 'E') {
           this.erasedCells.push({ col, row });
-          return this.save.finishedStory ? -1 : TILE_INDEX.erased;
+          return this.save.finishedStory ? -1 : ERASED_TILE;
         }
         return -1;
       }),
     );
     const map = this.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
-    const tileset = map.addTilesetImage('tiles', 'tiles', TILE, TILE, 0, 0);
-    if (!tileset) throw new Error('Tileset missing');
-    const layer = map.createLayer(0, tileset, 0, 0);
+    const autotiles = map.addTilesetImage('auto', TILESET_KEY, TILE, TILE, 0, 0, 0);
+    const extra = map.addTilesetImage('extra', 'tilesBasic', TILE, TILE, 0, 0, EXTRA_GID);
+    if (!autotiles || !extra) throw new Error('Tileset missing');
+    const layer = map.createLayer(0, [autotiles, extra], 0, 0);
     if (!(layer instanceof Phaser.Tilemaps.TilemapLayer)) throw new Error('Tilemap layer missing');
     this.layer = layer;
     this.layer.setCollisionByExclusion([-1]);
@@ -492,7 +510,7 @@ export class GameScene extends Phaser.Scene {
       label = this.add
         .text(x, y - 24, 'TODO', { fontFamily: 'monospace', fontSize: '8px', color: COLORS.oat })
         .setOrigin(0.5)
-        .setResolution(CANVAS_SCALE * 2)
+        .setResolution(CANVAS_SCALE)
         .setDepth(4);
     }
     this.enemies.push({
@@ -942,8 +960,7 @@ export class GameScene extends Phaser.Scene {
     this.bossHp = BOSS_HP;
     this.bossMode = 'idle';
     this.bossModeMs = 0;
-    for (let row = 11; row <= 16; row++)
-      this.layer.putTileAt(TILE_INDEX.erased, ARENA_GATE_COL, row);
+    for (let row = 11; row <= 16; row++) this.layer.putTileAt(ERASED_TILE, ARENA_GATE_COL, row);
     this.layer.setCollisionByExclusion([-1]);
     this.ui.toast(BOSS_LINES.intro, 3500);
   }
@@ -1039,7 +1056,7 @@ export class GameScene extends Phaser.Scene {
           color: COLORS.cloudDark,
         })
         .setOrigin(0.5)
-        .setResolution(CANVAS_SCALE * 2)
+        .setResolution(CANVAS_SCALE)
         .setDepth(6);
       const rect = new Phaser.Geom.Rectangle(x - 20, 2 * TILE, 40, 8);
       const hazard: Hazard = { rect, visual, lifeMs: 2400, activeAfterMs: 500 };
@@ -1202,8 +1219,7 @@ export class GameScene extends Phaser.Scene {
       }
       if (kind === 'desk' && !this.hasAbility()) {
         this.persist({ abilities: ['complete'] });
-        for (const cell of this.bridgeCells)
-          this.layer.putTileAt(TILE_INDEX.bridge, cell.col, cell.row);
+        for (const cell of this.bridgeCells) this.layer.putTileAt(BRIDGE_TILE, cell.col, cell.row);
         this.layer.setCollisionByExclusion([-1]);
         this.drawBridgeOutline();
         this.physics.world.pause();

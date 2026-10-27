@@ -3,10 +3,13 @@ export const GAME_WIDTH = 480;
 export const GAME_HEIGHT = 270;
 
 /**
- * The canvas is rendered at 2x the logical view. The world camera zooms 2x, so pixel art stays
- * chunky while UI text (drawn by an unzoomed camera) stays crisp.
+ * The canvas is rendered at 4x the logical view (1920x1080). The world camera zooms 4x, so pixel
+ * art scales by an exact integer and stays sharp on large and high-DPI screens.
  */
-export const CANVAS_SCALE = 2;
+export const CANVAS_SCALE = 4;
+
+/** The UI is laid out on a 960x540 grid and drawn by a 2x camera with high-resolution text. */
+export const UI_ZOOM = 2;
 
 /** One pixel-art "cell" in world pixels. Every sprite grid is drawn at this scale. */
 export const CELL = 2;
